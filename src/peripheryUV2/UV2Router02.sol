@@ -49,7 +49,7 @@ contract UV2Router02 {
         uint256 inputAmount,
         uint256 expectedOutputAmount,
         address[] calldata tokenSwappingPaths,
-        deadline
+        uint deadline
     ) external virtual override ensureExecutionTime(deadline) {}
 
     function swappingTokensForExactTokens() external {}
