@@ -858,11 +858,11 @@ dy = (Y₀ * dx * 0.997) / (X₀ + dx * 0.997)
 In Uniswap V2 code, the calculation is implemented using integer math.
 
 ```
-amountInWithFee = amountIn * 997
+inputAmountWithFee = inputAmount * 997
 
-numerator = amountInWithFee * reserveOut
+numerator = inputAmountWithFee * reserveOut
 
-denominator = reserveIn * 1000 + amountInWithFee
+denominator = reserveIn * 1000 + inputAmountWithFee
 
 amountOut = numerator / denominator
 ```
