@@ -243,7 +243,7 @@ library UV2Library {
  // go through the above natspec completly befreo going any further to the caluclations or you will get lost
     uint256 numerator  = inputAmountWithFee * reserveOut;
     uint256 denominator  = inputAmountWithFee + (reserveIn * 1000); 
- outputAmount = numerator / denominator;
+    outputAmount = numerator / denominator;
 
 
     }

@@ -23,9 +23,10 @@ Its job is simple:
 > It is to Calculates the output for **one swap between one pair**. ex. - ETH -> USDC
 
 ---
-
+ 
 # Original Code
-
+Customized for better gas optimization using custom errors and omitted the safeMath library as v8.+ does it automatically 
+So used direct operation signs unlike uniswap v2!
 ```solidity
 function getAmountOut(
     uint inputAmount,
@@ -36,32 +37,27 @@ function getAmountOut(
     pure
     returns (uint amountOut)
 {
-    require(
-        inputAmount > 0,
-        "INSUFFICIENT_INPUT_AMOUNT"
-    );
-
-    require(
-        reserveIn > 0 &&
-        reserveOut > 0,
-        "INSUFFICIENT_LIQUIDITY"
-    );
+    if (inputAmount <= 0) {
+            revert UV2Library__getAmountOut__InsufficientInputAmount();
+        }
+        if (reserveIn <= 0 || reserveOut <= 0) {
+            revert UV2Library__getAmountOut__InsufficientLiquidity();
+    }
 
     uint inputAmountWithFee =
-        inputAmount.mul(997);
+        inputAmount * 997 ;
 
     uint numerator =
-        inputAmountWithFee.mul(reserveOut);
+        inputAmountWithFee * reserveOut;
 
     uint denominator =
-        reserveIn.mul(1000)
-        .add(inputAmountWithFee);
+         inputAmountWithFee + (reserveIn * 1000);
 
     amountOut =
         numerator / denominator;
 }
 ```
-
+> Kindly also check the function natspecs for fully understand the calulations and more detailed stuffs!
 ---
 
 # Child Analogy
