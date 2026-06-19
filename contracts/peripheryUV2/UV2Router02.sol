@@ -52,7 +52,7 @@ contract UV2Router02 {
      *     Transfers the input tokens from the caller to the first liquidity pair.
      *      Finally executes all swaps along the provided path.
      * @param inputAmount Exact amount of input tokens the user wants to spend.
-     *  @param amountOutMin Minimum acceptable amount of the final output token.
+     *  @param minAmountOut Minimum acceptable amount of the final output token.
      *       Reverts if the calculated output is lower. 
      
      Example: lets say user expects atleas 950 weth for 1000 USDC, and if output amount is 900 or >950 then revrets
@@ -62,12 +62,12 @@ contract UV2Router02 {
      *  @param to Recipient of the final output tokens.
      *  @param deadline Transaction expiry timestamp.
      *         Reverts if the transaction is executed after this time. It is a safety bottleneck for better price value
-     *  @return outputAmounts Output amounts calculated for each token in the path. If multi swap tjhey it will give the outputs for each path along with the final path
+     *  @return amounts Output amounts calculated for each token in the path. If multi swap tjhey it will give the outputs for each path along with the final path
      *          Example:
      *          path    = [USDC, WETH, LINK]
      *          amounts = [1000, 0.4e18, 950e18]
             
-                note and we added "s" in outputAmounts beacuse it is an array and have more than one output so there you go!
+                note and we added "s" in amounts beacuse it is an array and have more than one output so there you go!
                 
 
 
@@ -78,12 +78,12 @@ contract UV2Router02 {
 
     function swappingExactTokensForTokens(
         uint256 inputAmount,
-        uint256 expectedOutputAmount,
+        uint256 minAmountOut,
         address[] calldata tokenSwappingPaths,
         uint256 deadline
-    ) external virtual override ensureExecutionTime(deadline) returns(uint256[] memory outputAmounts){
+    ) external virtual override ensureExecutionTime(deadline) returns(uint256[] memory amounts){
 
-outputAmounts = UV2Library.getAmountsOut();
+amounts = UV2Library.getAmountsOut();
     }
 
     function swappingTokensForExactTokens() external {}
