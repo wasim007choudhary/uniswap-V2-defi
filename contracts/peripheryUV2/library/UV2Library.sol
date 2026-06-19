@@ -9,6 +9,8 @@ library UV2Library {
     error UV2Library__getAmountOut__InsufficientInputAmount();
     error UV2Library__getAmountOut__InsufficientLiquidity();
     error UV2Library__getAmountsOut__InvalidPath();
+    error UV2Library__sortaTokens__Identical_Address();
+    error UV2Library__sortTokens__Invalid_Token0_Address();
 
     /*//////////////////////////////////////////////////////////////
                             Internal Functions
@@ -680,5 +682,78 @@ library UV2Library {
 amounts[i + 1] = getAmountOut(amounts[i], reserveIn, reserveOut);
         }
     }
-    function getReserves(address factory, address tokenA, address tokenB) internal view returns(uint256 reserveA, uint256 reserveB){}
+/**
+@dev This function basically does which token will be the first poisiion token between a pair like will token A be called token0 or tokenB will be called by caluclating the address, the token with the smaller address numerically will the the token0, and the other one token1
+Keep in mind that tokenA doesnt mean it is token0, for naming conevention we wrote A .
+@notice sortTokens doesn't just decide "which is token0."
+It RETURNS both tokens in sorted order.
+
+  token0 = the smaller address (always)
+  token1 = the larger address (always)
+  
+It doesn't matter if you call them tokenA/tokenB, cat/dog, first/second.
+The function always gives you: (smaller, larger) 
+@dev FUNCTION FLOW - 
+INPUT: tokenA = 0xBBB... , tokenB = 0xAAA...
+
+Step 1: Are they different?
+        0xBBB != 0xAAA? YES ✅
+
+Step 2: Which is smaller?
+        0xBBB < 0xAAA? NO ❌
+        → Swap them!
+        token0 = 0xAAA (smaller)
+        token1 = 0xBBB (larger)
+
+Step 3: Is token0 valid?
+        0xAAA != address(0)? YES ✅
+
+OUTPUT: token0 = 0xAAA , token1 = 0xBBB*/
+    function sortTokens(address tokenA, address tokenB) internal pure returns(address token0, address token1) {
+        if(tokenA == tokenB) {
+            revert UV2Library__sortaTokens__Identical_Address();
+            /** why revert if same address because - A pair needs TWO DIFFERENT tokens.
+     You can't create a WETH/WETH pair. That would be trading a token with itself — makes no sense.
+     🧒 Child Analogy:
+You can't trade your Pikachu card for... another Pikachu card.
+You need TWO DIFFERENT cards to trade!
+     */
+
+        }
+        (token0, token1) = tokenA < tokenB ? (tokenA, tokenB) : (tokenB, tokenA)  
+        /**It basically means if address of TokenA is smaller then address of tokenB then token 0 is TokenA and TokenB is token1 
+        and if address of TokenB is smaller then address of tokenA then Token0 is TokenB and TokenA is Token1 as shown in Step 2 above. */
+        if(token0 == address(0)) {
+            revert UV2Library__sortTokens__Invalid_Token0_Address();
+        }
+/**
+ * 
+ * @dev VALIDATION ORDER: Why zero-address check is LAST, not first.
+ * 
+ *      It COULD be done at the front:
+ *        if(tokenA == address(0)){revert .....};
+ *        if(tokenA == address(0)){revert .....};
+ *      This is correct but requires 2 checks.
+ * 
+ *      By sorting FIRST, we only need 1 check:
+ *        After sorting: token0 < token1 (token0 is the smaller address).
+ *        If token0 != 0 → since token1 > token0 → token1 != 0 automatically.
+ * 
+ *      Checking token0 alone covers both. Saves one require (saves gas).
+ * 
+ *      🧒 Analogy:
+ *      You have two boxes. You put the smaller box on the left.
+ *      You only open the left box. If it's not empty, the bigger
+ *      right box can't be empty either. One check does the job of two.
+ */
+
+    }
+
+    function pairFor(address factory, address tokenA, address tokenB) internal pure returns(address pair) {
+
+        (address token0, address token1) = sortTokens(tokenA, tokenB);
+    }
+    function getReserves(address factory, address tokenA, address tokenB) internal view returns(uint256 reserveA, uint256 reserveB){
+        
+    }
 }

@@ -83,7 +83,7 @@ contract UV2Router02 {
         uint256 deadline
     ) external virtual override ensureExecutionTime(deadline) returns(uint256[] memory amounts){
 
-amounts = UV2Library.getAmountsOut();
+amounts = UV2Library.getAmountsOut(inputAmount, );
     }
 
     function swappingTokensForExactTokens() external {}
