@@ -16,6 +16,8 @@ library UV2Library {
     error UV2Library__getAmountsOut__InvalidPath();
     error UV2Library__sortaTokens__Identical_Address();
     error UV2Library__sortTokens__Invalid_Token0_Address();
+    error UV2Library__quote__Invalid_AmountA();
+    error UV2Library__quote__Invalid_Reserves();
 
     /*//////////////////////////////////////////////////////////////
                             Internal Functions
@@ -926,5 +928,68 @@ library UV2Library {
         (address token0,) = sortTokens(tokenA, tokenB);
         (uint256 reserve0, uint256 reserve1,) = IUV2Pair(pairFor(factory, tokenA, tokenB)).getReserves();
         (reserveA, reserveB) = tokenA == token0 ? (reserve0, reserve1) : (reserve1, reserve0);
+    }
+
+    /**
+     * @notice Calculates the equivalent amount of token B required to maintain
+     *         the current pool ratio when supplying an amount of token A.
+     *
+     * @dev This function performs simple ratio mathematics and is commonly used
+     *      during liquidity provisioning.
+     *
+     *      Unlike getAmountOut(), this function:
+     *
+     *      - Does NOT perform swap calculations.
+     *      - Does NOT use the x * y = k invariant.
+     *      - Does NOT apply the 0.3% swap fee.
+     *      - Does NOT account for slippage.
+     *
+     *      Instead, it preserves the existing reserve ratio:
+     *
+     *          reserveA : reserveB
+     *          =
+     *          amountA  : amountB
+     *
+     *      Rearranging the proportion gives:
+     *
+     *          amountB = (amountA * reserveB) / reserveA
+     *
+     *      Example:
+     *
+     *          Pool:
+     *              10 ETH
+     *              20,000 USDC
+     *
+     *          User adds:
+     *              2 ETH
+     *
+     *          quote() returns:
+     *              4,000 USDC
+     *
+     *      because:
+     *
+     *          10 : 20,000
+     *          =
+     *          2  : 4,000
+     *
+     *      The reserve ratio remains unchanged.
+     *
+     * @param amountA Amount of token A.
+     * @param reserveA Current reserve of token A in the pool.
+     * @param reserveB Current reserve of token B in the pool.
+     *
+     * @return amountB Equivalent amount of token B required to preserve
+     *         the current pool ratio.
+     *
+     *  @dev Check notes/Periphery/Library/UV2Library--quote.md for complete disection.
+     */
+    function quote(uint256 amountA, uint256 reserveA, uint256 reserveB) internal pure returns (uint256 amountB) {
+        if (amountA == 0) {
+            revert UV2Library__quote__Invalid_AmountA();
+        }
+        if (reserveA == 0 || reserveB == 0) {
+            revert UV2Library__quote__Invalid_Reserves();
+        }
+        amountB = (amountA * reserveB) / reserveA;
     }
 }
