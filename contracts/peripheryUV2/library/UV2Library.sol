@@ -82,7 +82,7 @@ library UV2Library {
         }
         /**
          *
-         * @dev Understanding Where Uniswap V2's  calculation  dx = (X₀ * dy * 0.997) / (Y₀ + dy * 0.997)
+         * @dev Understanding Where Uniswap V2's  calculation  dy = (y * dx * 0.997) / (x + dx * 0.997)
          *
          * ---
          * Example Values
@@ -138,15 +138,15 @@ library UV2Library {
          *
          * Therefore Uniswap rewrites:
          *
-         *    997
-         * 0.997 = ----
-         *   1000
+         *           997
+         * 0.997 as ----
+         *          1000
          *
          * Substituting:
          *
-         * 200000 × 10 × (997/1000)
-         * dy = --------------------------
-         * 100 + 10 × (997/1000)
+         *         200000 × 10 × (997/1000)
+         *  dy = --------------------------
+         *         100 + 10 × (997/1000)
          *
          * ---
          * Step 3: Remove the Fraction
@@ -158,18 +158,18 @@ library UV2Library {
          *
          * Remember:
          *
-         * a      a × 1000
+         *      a      a × 1000
          *     ---  = -----------
-         * b      b × 1000
+         *      b      b × 1000
          *
          *
          * This does NOT change the value.
          *
          * Therefore:
          *
-         *    200000 × 10 × (997/1000) × 1000
+         *           200000 × 10 × (997/1000) × 1000
          *     dy = ---------------------------------
-         *    (100 + 10 × (997/1000)) × 1000
+         *           (100 + 10 × (997/1000)) × 1000
          *
          * ---
          * Numerator --
@@ -973,6 +973,10 @@ library UV2Library {
      *          2  : 4,000
      *
      *      The reserve ratio remains unchanged.
+     *         In algebraic terms:
+     *         x:y = a:b
+     *.        b*x = y*a
+     *.        b = (y*a)/x , b = amountB, a = amountA, x = reserveA, y = reserveB
      *
      * @param amountA Amount of token A.
      * @param reserveA Current reserve of token A in the pool.
