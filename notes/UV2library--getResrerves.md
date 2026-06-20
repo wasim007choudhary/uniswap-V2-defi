@@ -602,3 +602,647 @@ tokenA/tokenB
 ```
 
 which is the actual purpose of Library.getReserves().
+
+---
+
+# Final Line - Translating Pair Reserves Into Caller Reserves
+
+We have now reached the most important line in the function:
+
+```solidity
+(reserveA, reserveB) =
+    tokenA == token0
+        ? (reserve0, reserve1)
+        : (reserve1, reserve0);
+```
+
+---
+
+# My Confusion
+
+This line looked insane at first.
+
+Questions that came to mind:
+
+```text
+How did reserveA suddenly become tokenA's reserve?
+
+Why are reserves being swapped?
+
+Why don't we use token1?
+
+Why compare tokenA to token0?
+
+Why not compare both tokens?
+
+What is actually happening here?
+```
+
+---
+
+# Important Realization
+
+Nothing is being modified.
+
+Nothing is being updated.
+
+Nothing is being written back to the Pair contract.
+
+This line only determines:
+
+```text
+Which reserve value should be returned
+as reserveA and reserveB.
+```
+
+---
+
+# What We Know So Far
+
+The Pair contract always speaks in:
+
+```text
+token0
+token1
+
+reserve0
+reserve1
+```
+
+and guarantees:
+
+```text
+reserve0 ↔ token0
+
+reserve1 ↔ token1
+```
+
+(For the exact proof of this relationship, is establised in the Pair Contract `_update()`.)
+
+---
+
+# What The Caller Speaks
+
+The caller does not care about:
+
+```text
+token0
+token1
+```
+
+The caller asked:
+
+```solidity
+getReserves(
+    factory,
+    tokenA,
+    tokenB
+)
+```
+
+So the caller expects:
+
+```text
+reserveA ↔ tokenA
+
+reserveB ↔ tokenB
+```
+
+---
+
+# The Translation Problem
+
+Suppose caller provides:
+
+```text
+tokenA = USDC
+tokenB = WETH
+```
+
+After sorting:
+
+```text
+token0 = WETH
+token1 = USDC
+```
+
+Pair returns:
+
+```text
+reserve0 = 100
+reserve1 = 300000
+```
+
+---
+
+If we simply returned:
+
+```solidity
+return (reserve0, reserve1);
+```
+
+caller would receive:
+
+```text
+100
+300000
+```
+
+and might assume:
+
+```text
+reserveA = 100 USDC ❌
+
+reserveB = 300000 WETH ❌
+```
+
+which is completely wrong.
+
+---
+
+# Why token1 Does Not Matter
+
+One of my biggest questions was:
+
+```text
+Why only use token0?
+
+Where did token1 go?
+```
+
+---
+
+Answer:
+
+A Pair only contains:
+
+```text
+token0
+token1
+```
+
+Two tokens.
+
+No more.
+
+---
+
+Therefore:
+
+If:
+
+```text
+tokenA == token0
+```
+
+then automatically:
+
+```text
+tokenB == token1
+```
+
+---
+
+If:
+
+```text
+tokenA != token0
+```
+
+then automatically:
+
+```text
+tokenA == token1
+
+tokenB == token0
+```
+
+There is nowhere else for them to go.
+
+---
+
+# Child Analogy
+
+Two chairs:
+
+```text
+Chair0
+Chair1
+```
+
+Two people:
+
+```text
+Wasim
+Ahmed
+```
+
+If I tell you:
+
+```text
+Wasim is sitting on Chair0
+```
+
+you immediately know:
+
+```text
+Ahmed is sitting on Chair1
+```
+
+without checking.
+
+---
+
+Same idea.
+
+Knowing where one token belongs automatically tells us where the other token belongs.
+
+---
+
+# Expanding The Ternary Operator
+
+Original:
+
+```solidity
+(reserveA, reserveB) =
+    tokenA == token0
+        ? (reserve0, reserve1)
+        : (reserve1, reserve0);
+```
+
+Expanded:
+
+```solidity
+if (tokenA == token0) {
+    reserveA = reserve0;
+    reserveB = reserve1;
+} else {
+    reserveA = reserve1;
+    reserveB = reserve0;
+}
+```
+
+---
+
+# Case 1
+
+Caller:
+
+```text
+tokenA = WETH
+tokenB = USDC
+```
+
+Sorted:
+
+```text
+token0 = WETH
+token1 = USDC
+```
+
+Pair:
+
+```text
+reserve0 = 100
+reserve1 = 300000
+```
+
+Condition:
+
+```solidity
+tokenA == token0
+```
+
+becomes:
+
+```text
+WETH == WETH
+```
+
+Result:
+
+```solidity
+reserveA = reserve0;
+reserveB = reserve1;
+```
+
+Final:
+
+```text
+reserveA = 100 WETH
+reserveB = 300000 USDC
+```
+
+Correct.
+
+---
+
+# Case 2
+
+Caller:
+
+```text
+tokenA = USDC
+tokenB = WETH
+```
+
+Sorted:
+
+```text
+token0 = WETH
+token1 = USDC
+```
+
+Pair:
+
+```text
+reserve0 = 100
+reserve1 = 300000
+```
+
+Condition:
+
+```solidity
+tokenA == token0
+```
+
+becomes:
+
+```text
+USDC == WETH
+```
+
+False.
+
+Result:
+
+```solidity
+reserveA = reserve1;
+reserveB = reserve0;
+```
+
+Final:
+
+```text
+reserveA = 300000 USDC
+reserveB = 100 WETH
+```
+
+Correct.
+
+---
+
+# Another Confusion I Had
+
+Where exactly does:
+
+reserveA ↔ tokenA
+
+get established?
+
+---
+
+The answer is:
+
+This Library function establishes:
+
+reserveA ↔ tokenA
+
+reserveB ↔ tokenB
+
+for its returned values.
+
+Specifically here:
+
+```solidity
+reserveA = reserve0;
+```
+
+or
+
+```solidity
+reserveA = reserve1;
+```
+
+depending on which branch executes.
+
+---
+
+Important Clarification
+
+At this point in the dissection we have NOT yet proven from the Pair contract code that:
+
+reserve0 ↔ token0
+
+reserve1 ↔ token1
+
+We strongly infer this relationship from:
+
+- Pair naming conventions
+- Pair API design
+- Uniswap architecture
+
+but the actual assignment chain has not yet been traced.
+
+That proof will appear later when we dissect:
+
+```solidity
+_update(...)
+```
+
+inside the Pair contract.
+
+---
+
+Therefore the safest statement right now is:
+
+The Library assumes:
+
+reserve0 ↔ token0
+
+reserve1 ↔ token1
+
+and translates those values into:
+
+reserveA ↔ tokenA
+
+reserveB ↔ tokenB
+
+for the caller.
+
+The exact origin of the reserve0/token0 relationship will be verified later during the `_update()` dissection.
+
+
+
+---
+
+# What This Function Really Does
+
+This function does fetch reserves.
+
+Specifically, it retrieves:
+
+```solidity
+reserve0
+reserve1
+```
+
+from the Pair contract by calling:
+
+```solidity
+pair.getReserves()
+```
+
+---
+
+However, fetching reserves is not its primary purpose.
+
+The Pair contract already stores and manages reserve data.
+
+The unique responsibility of this Library function is to:
+
+```text
+Translate
+
+token0/token1 reserves
+
+into
+
+tokenA/tokenB reserves
+```
+
+for the caller.
+
+---
+
+This function does not:
+
+- calculate reserves
+- update reserves
+- synchronize reserves
+- modify Pair state
+
+No state changes occur.
+
+---
+
+Its workflow is:
+
+1. Determine token0.
+2. Derive Pair address.
+3. Fetch reserve0 and reserve1 from the Pair.
+4. Reorder reserves to match tokenA/tokenB ordering.
+5. Return the reordered reserves.
+
+---
+
+The real purpose is:
+
+```text
+Translate:
+
+token0/token1 reserves
+
+into
+
+tokenA/tokenB reserves
+```
+
+---
+
+# Mental Model
+
+Pair Contract says:
+
+`token0 -> reserve0`
+`token1 -> reserve1`
+
+Caller says:
+
+I don't care about `token0/token1`.
+
+I asked for:
+
+`tokenA`
+`tokenB`
+
+Library says:
+
+No problem.
+
+I'll figure out whether:
+
+`reserve0` belongs to `tokenA`
+
+or
+
+`reserve1` belongs to `tokenA`
+
+and return them in your order.
+
+>The Library is not creating new reserve relationships.The Library is reordering the answer to match the order the caller asked in.
+
+---
+
+# Final Summary
+
+Step 1
+
+```solidity
+sortTokens(...)
+```
+
+Determine token0.
+
+---
+
+Step 2
+
+```solidity
+pairFor(...)
+```
+
+Calculate Pair address.
+
+---
+
+Step 3
+
+```solidity
+pair.getReserves()
+```
+
+Get:
+
+```text
+reserve0
+reserve1
+```
+
+---
+
+Step 4
+
+Determine whether:
+
+```text
+tokenA == token0
+
+hence, 
+
+reserve0 == reserveA or reserveB
+```
+
+---
+
+Step 5
+
+Return reserves in the same order as the caller's tokens.
+
+---
+
+That is the entire purpose of:
+
+```solidity
+UniswapV2Library.getReserves()
+```
