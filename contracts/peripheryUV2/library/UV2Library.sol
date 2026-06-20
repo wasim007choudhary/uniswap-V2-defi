@@ -2,6 +2,10 @@
 
 pragma solidity ^0.8.20;
 
+ /*//////////////////////////////////////////////////////////////
+                                IMPORTS
+    //////////////////////////////////////////////////////////////*/
+    import {IUV2Pair} from "contracts/coreUV2/Interface/IUV2Pair.sol";
 library UV2Library {
     /*//////////////////////////////////////////////////////////////
                                 ERRORS
@@ -820,6 +824,7 @@ You need TWO DIFFERENT cards to trade!
         ))));
     }
     function getReserves(address factory, address tokenA, address tokenB) internal view returns(uint256 reserveA, uint256 reserveB){
-        
+        (address token0,) = sortTokens(tokenA, tokenB);
+      (uint256 reserve0, uint256 reserve1) = IUV2Pair(pairFor(factory, tokenA, tokenB)).getReserves();
     }
 }
