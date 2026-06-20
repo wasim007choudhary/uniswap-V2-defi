@@ -1,4 +1,44 @@
 # Uniswap V2 Deep Dive - Part A
+> [!NOTICE]
+>
+> This dissection follows the original Uniswap V2 source code and explanations as they are widely referenced and discussed throughout the ecosystem.
+>
+> My implementation is written using Solidity `^0.8.20` (and newer compiler versions), which introduces stricter type-conversion rules than the Solidity version used by Uniswap V2.
+>
+> As a result, some code snippets in these notes may appear slightly different in my implementation.
+>
+> Example:
+>
+> Original Uniswap V2:
+>
+> ```solidity
+> pair = address(uint(keccak256(...)))
+> ```
+>
+> Modern Solidity:
+>
+> ```solidity
+> pair = address(uint160(uint256(keccak256(...))))
+> ```
+>
+> The underlying logic, behavior, and address derivation process remain exactly the same.
+>
+> The newer syntax simply makes the conversion from:
+>
+> ```text
+> bytes32
+>   ↓
+> uint256
+>   ↓
+> uint160
+>   ↓
+> address
+> ```
+>
+> explicit for compiler safety.
+>
+> Throughout this dissection, the focus is on understanding the protocol logic rather than compiler-version-specific syntax differences.
+
 
 # pairFor(), sortTokens(), Factory vs Router, CREATE2, Salt, hex'ff'
 
