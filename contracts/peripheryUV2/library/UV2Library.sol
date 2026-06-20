@@ -20,6 +20,8 @@ library UV2Library {
                             Internal Functions
     //////////////////////////////////////////////////////////////*/
     /**
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------
      * @notice Calculates the maximum output amount for a given input amount.
      *
      * @dev Uses Uniswap V2's constant product AMM formula (x * y = k) while
@@ -47,6 +49,8 @@ library UV2Library {
      * given input amount.
      * ---------------------------------
      * @dev getAmountOut() only performs the swap calculation for a SINGLE pair.
+
+     
      *
      * Examples:
      *
@@ -59,6 +63,8 @@ library UV2Library {
      *
      * are handled by getAmountsOut(), which repeatedly calls getAmountOut()
      * for each pair in the path.
+
+     @dev  @dev Check notes/Periphery/Library/UV2PLibrary--getAmountOut.md for crazy indept disection with Q.A and recurring Confusion pOints and at last with a clear mental model.
      */
     function getAmountOut(uint256 inputAmount, uint256 reserveIn, uint256 reserveOut)
         internal
@@ -297,6 +303,8 @@ library UV2Library {
         outputAmount = numerator / denominator;
     }
     /**
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     @title getAmountsOut()
  * @notice Calculates the expected output amount at each step of a swap route.
  *
@@ -339,6 +347,8 @@ library UV2Library {
  * @return amounts Expected token amounts at each step of the route.
 
  Note Read the Multi-Hop Swap Output Calculator to get the full core of the function! 
+
+  @dev Check notes/Periphery/Library/UV2PLibrary--getAmountsOut.md for crazy indept disection with Q.A and recurring Confusion pOints and at last with a clear mental model.
  */
 
     /**
@@ -657,6 +667,7 @@ library UV2Library {
  * 6. INITIAL STATE: amounts[0] is NOT a swap output - it's user input
  *    Only amounts[1] onwards are calculated swap results
  * 
+ @dev Check notes/Periphery/Library/UV2PLibrary--getAmountsOut.md for crazy indept disection with Q.A and recurring Confusion pOints and at last with a clear mental model.
 */
 
     function getAmountsOut(address factory, uint256 inputAmount, address[] memory path)
@@ -687,6 +698,8 @@ amounts[i + 1] = getAmountOut(amounts[i], reserveIn, reserveOut);
         }
     }
 /**
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 @dev This function basically does which token will be the first poisiion token between a pair like will token A be called token0 or tokenB will be called by caluclating the address, the token with the smaller address numerically will the the token0, and the other one token1
 Keep in mind that tokenA doesnt mean it is token0, for naming conevention we wrote A .
 @notice sortTokens doesn't just decide "which is token0."
@@ -712,7 +725,9 @@ Step 2: Which is smaller?
 Step 3: Is token0 valid?
         0xAAA != address(0)? YES ✅
 
-OUTPUT: token0 = 0xAAA , token1 = 0xBBB*/
+OUTPUT: token0 = 0xAAA , token1 = 0xBBB
+
+*/
     function sortTokens(address tokenA, address tokenB) internal pure returns(address token0, address token1) {
         if(tokenA == tokenB) {
             revert UV2Library__sortaTokens__Identical_Address();
@@ -749,11 +764,14 @@ You need TWO DIFFERENT cards to trade!
  *      You have two boxes. You put the smaller box on the left.
  *      You only open the left box. If it's not empty, the bigger
  *      right box can't be empty either. One check does the job of two.
+ 
  */
 
     }
 
 /**
+ ---------------------------------------------------------------------------------------------------------------------------------
+ ---------------------------------------------------------------------------------------------------------------------------------
  * @notice Deterministically calculates the Uniswap V2 pair address for two tokens.
  *
  * @dev This function recreates Ethereum's CREATE2 address derivation formula
@@ -811,6 +829,8 @@ You need TWO DIFFERENT cards to trade!
  * @return pair Predicted address of the UniswapV2Pair contract.
  Note hex'96e8ac4277198ff8b6f785478aa9a39f403cb768dd02cbee326c3e7da348845f' is the byte code hashed by keccak256 , it is the byte code when we compile a contarct etc
  it is alo known as [Bytecode = creationCode = initCode] and if we hash like here we have the hashed value it becomes initCodeHash
+
+  @dev Check notes/Periphery/Library/UV2Plibrary--PairForAndCreate2.md for the complete disection
  */
     function pairFor(address factory, address tokenA, address tokenB) internal pure returns(address pair) {
 
@@ -823,6 +843,72 @@ You need TWO DIFFERENT cards to trade!
             hex'96e8ac4277198ff8b6f785478aa9a39f403cb768dd02cbee326c3e7da348845f' 
         ))));
     }
+
+    /**
+    ---------------------------------------------------------------------------------------------------------------------------------
+     --------------------------------------------------------------------------------------------------------------------------------
+ * @notice Returns reserves for a token pair in the same order as the supplied tokens.
+ *
+ * @dev Workflow:
+ *
+ *      1. Sorts tokenA and tokenB to determine token0.
+ *      2. Derives the Pair address using pairFor().
+ *      3. Fetches reserve0 and reserve1 from the Pair contracts getReserves().
+ *      4. Reorders reserves so they match the caller's token order.
+ *
+ *      IMPORTANT:
+ *
+ *      Pair contracts internally store reserves as:
+ *
+ *          token0 ↔ reserve0
+ *          token1 ↔ reserve1
+ *
+ *      Callers, however, think in terms of:
+ *
+ *          tokenA
+ *          tokenB
+ *
+ *      This function acts as a translation layer, returning reserves
+ *      in the same order the caller supplied the tokens.
+ *
+ *      Example:
+ *
+ *          tokenA = USDC
+ *          tokenB = WETH
+ *
+ *      Pair stores:
+ *
+ *          token0 = WETH
+ *          token1 = USDC
+ *
+ *          reserve0 = 100
+ *          reserve1 = 300000
+ *
+ *      This function returns:
+ *
+ *          reserveA = 300000
+ *          reserveB = 100
+ *
+ *      so that reserveA always corresponds to tokenA and reserveB
+ *      always corresponds to tokenB.
+ *
+ *      Note:
+ *
+ *      The blockTimestampLast value returned by Pair.getReserves()
+ *      is intentionally discarded because this function only requires
+ *      reserve information.
+ *
+ *      For CREATE2 pair address derivation, see pairFor().
+ *
+ * @param factory Address of the UniswapV2Factory.
+ * @param tokenA First token supplied by the caller.
+ * @param tokenB Second token supplied by the caller.
+ *
+ * @return reserveA Reserve corresponding to tokenA.
+ * @return reserveB Reserve corresponding to tokenB.
+
+ @dev Check notes/Periphery/Library/UV2library--getResrerves.md for complete disection
+ */
     function getReserves(address factory, address tokenA, address tokenB) internal view returns(uint256 reserveA, uint256 reserveB){
         (address token0,) = sortTokens(tokenA, tokenB);
       (uint256 reserve0, uint256 reserve1) = IUV2Pair(pairFor(factory, tokenA, tokenB)).getReserves();
