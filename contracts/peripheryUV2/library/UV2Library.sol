@@ -749,9 +749,75 @@ You need TWO DIFFERENT cards to trade!
 
     }
 
+/**
+ * @notice Deterministically calculates the Uniswap V2 pair address for two tokens.
+ *
+ * @dev This function recreates Ethereum's CREATE2 address derivation formula
+ *      used by the Factory when deploying a Pair contract.
+ *
+ *      The function DOES NOT:
+ *      - Query the Factory
+ *      - Read storage
+ *      - Verify the pair exists
+ *      - Perform any external calls
+ *
+ *      Instead, it mathematically predicts the address where the pair
+ *      contract must exist (or will exist) based on:
+ *
+ *      1. Factory address      -> Who deploys the pair
+ *      2. Salt                -> Which token pair is being deployed
+ *      3. Init Code Hash      -> Which contract code is being deployed
+ *
+ *      CREATE2 Formula:
+ *
+ *      keccak256(
+ *          0xff ++
+ *          factory ++
+ *          salt ++
+ *          initCodeHash
+ *      )
+ *
+ *      The salt is derived from:
+ *
+ *      keccak256(
+ *          abi.encodePacked(token0, token1)
+ *      )
+ *
+ *      where token0 is always the numerically smaller address and
+ *      token1 is always the numerically larger address.
+ *
+ *      Sorting ensures:
+ *
+ *      WETH-USDC == USDC-WETH
+ *
+ *      resulting in one deterministic pair address regardless of
+ *      input ordering.
+ *
+ *      IMPORTANT:
+ *
+ *      This function can calculate an address even if the pair
+ *      contract has not been deployed yet.
+ *
+ *      Address prediction and contract existence are separate concepts.
+ *
+ * @param factory Address of the UniswapV2Factory contract.
+ * @param tokenA First token of the pair (input order does not matter).
+ * @param tokenB Second token of the pair (input order does not matter).
+ *
+ * @return pair Predicted address of the UniswapV2Pair contract.
+ Note hex'96e8ac4277198ff8b6f785478aa9a39f403cb768dd02cbee326c3e7da348845f' is the byte code hashed by keccak256 , it is the byte code when we compile a contarct etc
+ it is alo known as [Bytecode = creationCode = initCode] and if we hash like here we have the hashed value it becomes initCodeHash
+ */
     function pairFor(address factory, address tokenA, address tokenB) internal pure returns(address pair) {
 
         (address token0, address token1) = sortTokens(tokenA, tokenB);
+        pair = address(uint256(keccak256(abi.encodePacked(
+            hex'ff'
+            factory,
+            keccak256(abi.encodePacked(token0, token1)) //salt
+            //check natspec line after the return Pair line
+            hex'96e8ac4277198ff8b6f785478aa9a39f403cb768dd02cbee326c3e7da348845f' 
+        ))));
     }
     function getReserves(address factory, address tokenA, address tokenB) internal view returns(uint256 reserveA, uint256 reserveB){
         
