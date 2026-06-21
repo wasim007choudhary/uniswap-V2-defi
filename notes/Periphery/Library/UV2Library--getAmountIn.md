@@ -607,8 +607,7 @@ is insufficient.
 Therefore Uniswap rounds up:
 
 ```solidity
-amountIn =
-    (numerator / denominator) + 1;
+amountIn = (numerator / denominator) + 1;
 ```
 
 which guarantees enough input is provided.

@@ -18,6 +18,8 @@ library UV2Library {
     error UV2Library__sortTokens__Invalid_Token0_Address();
     error UV2Library__quote__Invalid_AmountA();
     error UV2Library__quote__Invalid_Reserves();
+    error UV2Library__getAmountIn__Insufficient_AmountOut();
+    error UV2Library_getAmountIn__Insufficient_Reserves();
 
     /*//////////////////////////////////////////////////////////////
                             Internal Functions
@@ -74,10 +76,10 @@ library UV2Library {
         pure
         returns (uint256 outputAmount)
     {
-        if (inputAmount <= 0) {
+        if (inputAmount == 0) {
             revert UV2Library__getAmountOut__InsufficientInputAmount();
         }
-        if (reserveIn <= 0 || reserveOut <= 0) {
+        if (reserveIn == 0 || reserveOut == 0) {
             revert UV2Library__getAmountOut__InsufficientLiquidity();
         }
         /**
@@ -931,6 +933,8 @@ library UV2Library {
     }
 
     /**
+     * ---------------------------------------------------------------------------------------------------------------------------------
+     * ---------------------------------------------------------------------------------------------------------------------------------
      * @notice Calculates the equivalent amount of token B required to maintain
      *         the current pool ratio when supplying an amount of token A.
      *
@@ -996,4 +1000,111 @@ library UV2Library {
         }
         amountB = (amountA * reserveB) / reserveA;
     }
+
+    /**
+     * ---------------------------------------------------------------------------------------------------------------------------------
+     * ---------------------------------------------------------------------------------------------------------------------------------
+     *  ```solidity
+     **
+     * @notice Calculates the minimum amount of input tokens required to obtain
+     *         a specific amount of output tokens from a Uniswap V2 liquidity pool.
+     *
+     * @dev This function is the mathematical inverse of {getAmountOut()}.
+     *
+     *      Whereas:
+     *
+     *          getAmountOut()
+     *              Known  -> amountIn
+     *              Find   -> amountOut
+     *
+     *      this function answers:
+     *
+     *          getAmountIn()
+     *              Known  -> amountOut
+     *              Find   -> amountIn
+     *
+     *      The calculation is derived from Uniswap V2's constant product
+     *      invariant:
+     *
+     *          x * y = k
+     *
+     *      where:
+     *
+     *          x = reserveIn
+     *          y = reserveOut
+     *
+     *      After accounting for the 0.3% swap fee:
+     *
+     *          (x + dx * 0.997) * (y - dy) = x * y
+     *
+     *      Solving the invariant for dx (amountIn) yields:
+     *
+     *                           reserveIn * amountOut * 1000
+     *          amountIn = -----------------------------------------
+     *                      (reserveOut - amountOut) * 997
+     *
+     *      Uniswap represents the 0.3% fee using:
+     *
+     *          997 / 1000
+     *
+     *      instead of floating point arithmetic because Solidity does not
+     *      support decimals.
+     *
+     *      The final result is rounded UP by adding 1 wei:
+     *
+     *          amountIn = (numerator / denominator) + 1
+     *
+     *      This is necessary because Solidity integer division always rounds
+     *      down. Without the additional +1, the calculated input amount may
+     *      be slightly insufficient to obtain the requested output amount.
+     *
+     *      Reverts if:
+     *
+     *      - amountOut is zero.
+     *      - reserveIn is zero.
+     *      - reserveOut is zero.
+     *      - amountOut is greater than or equal to reserveOut.
+     *
+     * @param amountOut The exact amount of output tokens desired.
+     * @param reserveIn Current reserve balance of the input token in the pool.
+     * @param reserveOut Current reserve balance of the output token in the pool.
+     *
+     * @return amountIn The minimum amount of input tokens required to receive
+     *                  amountOut output tokens.
+     *
+     * @custom:formula
+     *
+     * In UNiswapV2 terms:  amountIn = (reserveIn * amountOut * 1000 /  (reserveOut - amountOut) * 997 ) + 1
+     *
+     * In Mathematical terms : dx = (X₀dy * 1000 / (Y₀ - dy) * 997) + 1
+     *
+     *
+     * @custom:inverse-of getAmountOut()
+     * @custom:invariant x * y = k
+     *
+     *@notice Recommended to go through the getAmountOut() function first before going through this function as this is the inverse of that function and also the q/a of amountOut notes
+     *@notice Master AMM first and then go through this function to understand the math behind it.
+     *
+     *@dev Check notes/Periphery/Library/UV2Library--getAmountIn.md for complete disection.
+     */
+    function getAmountIn(uint256 amountOut, uint256 reserveIn, uint256 reserveOut)
+        internal
+        pure
+        returns (uint256 amountIn)
+    {
+        if (amountOut == 0) {
+            revert UV2Library__getAmountIn__Insufficient_AmountOut();
+        }
+        if (reserveIn == 0 || reserveOut == 0) {
+            revert UV2Library_getAmountIn__Insufficient_Reserves();
+        }
+        uint256 numerator = reserveIn * amountOut * 1000;
+        uint256 denominator = (reserveOut - amountOut) * 997;
+        amountIn = (numerator / denominator) + 1;
+    }
+
+    /**
+     * ---------------------------------------------------------------------------------------------------------------------------------
+     * ---------------------------------------------------------------------------------------------------------------------------------
+     */
 }
