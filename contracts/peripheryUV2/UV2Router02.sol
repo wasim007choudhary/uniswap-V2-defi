@@ -53,6 +53,17 @@ contract UV2Router02 is IUV2Router02{
         _;
     }
 
+    function _swap(address[] memory path, address to, uint256[] memory amounts) internal internal {
+        for (uint256 i = 0; i < path.length - 1; i++){
+            (address input, address output) = (path[i], path[i + 1]);
+            (address token0, ) = UV2Library.sortTokens(input, output);
+            uint256 amountOut = amounts[i + 1];
+            (uint256 amount0out, uint256 amount1out) = input == token0 ? (uint256(0), amountOut) : (amountOut, uint256(0));
+            address _to = i < path.length - 2 ? UV2Library.pairFor(i_factory, output, path[i + 2]) : to;
+
+        }
+    }
+
     /*//////////////////////////////////////////////////////////////
                                 External Functions
     //////////////////////////////////////////////////////////////*/
