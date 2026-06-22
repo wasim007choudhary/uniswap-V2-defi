@@ -758,7 +758,7 @@ library UV2Library {
          *
          *      It COULD be done at the front:
          *        if(tokenA == address(0)){revert .....};
-         *        if(tokenA == address(0)){revert .....};
+         *        if(tokenB == address(0)){revert .....};
          *      This is correct but requires 2 checks.
          *
          *      By sorting FIRST, we only need 1 check:
