@@ -6,6 +6,7 @@ pragma solidity ^0.8.20;
 //////////////////////////////////////////////////////////////*/
 import {UV2Library} from "contracts/peripheryUV2/library/UV2Library.sol";
 import {IUV2Router02} from "contracts/peripheryUV2/Interfaces/IUV2Router02.sol";
+import {MyTransferHelper} from "contracts/peripheryUV2/library/WTransferHelper.sol";
 
 /*//////////////////////////////////////////////////////////////
                         |  CONTRACT
@@ -90,15 +91,16 @@ contract UV2Router02 is IUV2Router02{
     function swappingExactTokensForTokens(
         uint256 inputAmount,
         uint256 minAmountOut,
-        address[] calldata tokenSwappingPaths,
+        address[] calldata path,
         address to,
         uint256 deadline
     ) external virtual override ensureExecutionTime(deadline) returns (uint256[] memory amounts) {
 
-        amounts = UV2Library.getAmountsOut(i_factory, inputAmount, tokenSwappingPaths);
+        amounts = UV2Library.getAmountsOut(i_factory, inputAmount, path);
         if(amounts[amounts.length - 1] < minAmountOut) {
             revert UV2Router02___swappingExactTokensForTokens__InsufficientOutputAmount();
         }
+        MyTransferHelper.safeTransferFrom(path[0],msg.sender, UV2Library.pairFor(i_factory, path[0], path[1]), amounts[0]);
     }
 
     //function swappingTokensForExactTokens() external {}

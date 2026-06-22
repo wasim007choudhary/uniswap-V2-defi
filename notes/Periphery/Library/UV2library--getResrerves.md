@@ -1183,66 +1183,183 @@ and return them in your order.
 >The Library is not creating new reserve relationships.The Library is reordering the answer to match the order the caller asked in.
 
 ---
+# What If A Pair Doesn't Exist?
+
+> If a Uniswap V2 pair does not exist, `pairFor()` will still successfully calculate the deterministic pair address. The EVM will successfully perform the external call to that address, but Solidity will later revert during ABI decoding because `getReserves()` expects reserve data and instead receives empty return data from an address with no deployed contract code.
+
+### Highly Recommended
+
+See:
+
+```text
+notes/Periphery/Library/what-happens-when-a-uniswap-pair-does-not-exist.md
+```
+
+This note covers:
+
+* How `pairFor()` works
+* CREATE2 deterministic addresses(also covered in `pairFOR function` in craxy depth tho! here just chime in and relax!)
+* Why Uniswap never searches for pairs
+* Pair existence verification
+* Calling addresses with no contract code
+* ABI decoding failures
+* Why the revert happens before `safeTransferFrom()` (while reading swap related functions you will get it!)
+* The exact execution flow inside `swapExactTokensForTokens()`
+
+Understanding this note will make the Router swap functions significantly easier to follow later, especially:
+
+* `swapExactTokensForTokens()`
+* `_swap()`
+* Multi-hop routing
+* Pair interactions
+
+It is also a great introduction to EVM internals, low-level calls, ABI encoding/decoding, and CREATE2 mechanics. A strong understanding of these concepts will pay dividends throughout DeFi and smart contract development.
 
 # Final Summary
 
-Step 1
+### Step 1
 
 ```solidity
 sortTokens(...)
 ```
 
-Determine token0.
+Determine the canonical token ordering and identify `token0`.
 
 ---
 
-Step 2
+### Step 2
 
 ```solidity
 pairFor(...)
 ```
 
-Calculate Pair address.
+Deterministically calculate the Pair address using CREATE2.
+
+> **Important:**
+>
+> `pairFor()` does **not** search the Factory for a Pair.
+>
+> It simply calculates the address where the Pair **should** exist.
 
 ---
 
-Step 3
+### Step 3
 
 ```solidity
 pair.getReserves()
 ```
 
-Get:
+Fetch:
 
 ```text
 reserve0
 reserve1
 ```
 
+from the Pair contract.
+
+> This is also where Pair existence is effectively verified.
+>
+> If no contract exists at the calculated address:
+>
+> * The EVM call itself succeeds
+> * Empty return data is returned
+> * Solidity attempts ABI decoding
+> * ABI decoding fails
+> * The transaction reverts
+>
+> Therefore:
+>
+> ```text
+> pairFor()
+>     = Address Calculation
+>
+> getReserves()
+>     = Pair Existence Verification
+> ```
+
+> Deep Dive:
+>
+> **[notes/Periphery/Library/what-happens-when-a-uniswap-pair-does-not-exist.md]**
+>
+> Covers CREATE2 pair address calculation, pair existence verification, EVM call behavior, and ABI decode reverts for non-existent Pair contracts.
 ---
 
-Step 4
+### Step 4
 
 Determine whether:
 
 ```text
 tokenA == token0
-
-hence, 
-
-reserve0 == reserveA or reserveB
 ```
+
+Hence:
+
+```text
+reserve0 == reserveA
+reserve1 == reserveB
+```
+
+or
+
+```text
+reserve0 == reserveB
+reserve1 == reserveA
+```
+
+depending on the order supplied by the caller.
 
 ---
 
-Step 5
+### Step 5
 
 Return reserves in the same order as the caller's tokens.
 
+This guarantees:
+
+```text
+reserveA belongs to tokenA
+
+reserveB belongs to tokenB
+```
+
+regardless of the Pair contract's internal `token0/token1` ordering.
+
 ---
 
-That is the entire purpose of:
+# Core Purpose
 
-```solidity
-UniswapV2Library.getReserves()
+`UniswapV2Library.getReserves()` does **not** simply fetch reserves.
+
+Its actual responsibilities are:
+
+1. Calculate the Pair address.
+2. Verify the Pair can be interacted with.
+3. Fetch reserves from the Pair contract.
+4. Re-map reserves from the Pair's internal ordering (`token0/token1`) to the caller's ordering (`tokenA/tokenB`).
+
+---
+
+# Mental Model
+
+```text
+pairFor()
+    ↓
+Address Calculation
+
+getReserves()
+    ↓
+Pair Existence Verification
+
+reserve0/reserve1
+    ↓
+Mapped To
+
+reserveA/reserveB
+    ↓
+Returned To Caller
 ```
+
+### One-Line Summary
+
+> `getReserves()` fetches reserves from a Pair contract and returns them in the same token order supplied by the caller, while implicitly verifying that the calculated Pair contract actually exists.
