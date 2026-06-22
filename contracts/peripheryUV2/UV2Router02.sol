@@ -4,15 +4,26 @@ pragma solidity ^0.8.20;
 /*//////////////////////////////////////////////////////////////
                             IMPORTS
 //////////////////////////////////////////////////////////////*/
-import {UV2Library} from "contarcts/library/UV2Library.sol";
+import {UV2Library} from "contracts/peripheryUV2/library/UV2Library.sol";
+import {IUV2Router02} from "contracts/peripheryUV2/Interfaces/IUV2Router02.sol";
+
 /*//////////////////////////////////////////////////////////////
                         |  CONTRACT
 //////////////////////////////////////////////////////////////*/
-contract UV2Router02 {
+contract UV2Router02 is IUV2Router02{
+     /*//////////////////////////////////////////////////////////////
+                                STATE VARIABLES
+    //////////////////////////////////////////////////////////////*/
+    address public immutable i_factory;
+
+    constructor(address _factory) {
+        i_factory = _factory;
+    }
     /*//////////////////////////////////////////////////////////////
                                 ERRORS
     //////////////////////////////////////////////////////////////*/
     error UV2Router02___ExecutionTimeExceeded();
+    error UV2Router02___swappingExactTokensForTokens__InsufficientOutputAmount();
 
     /*//////////////////////////////////////////////////////////////
                              MODIFIER
@@ -35,7 +46,7 @@ contract UV2Router02 {
      *  @param deadline Latest timestamp at which the transaction is considered valid.
      */
     modifier ensureExecutionTime(uint256 deadline) {
-        if (deadline >= block.timestamp) {
+        if (block.timestamp > deadline) {
             revert UV2Router02___ExecutionTimeExceeded();
         }
         _;
@@ -53,10 +64,10 @@ contract UV2Router02 {
      *      Finally executes all swaps along the provided path.
      * @param inputAmount Exact amount of input tokens the user wants to spend.
      *  @param minAmountOut Minimum acceptable amount of the final output token.
-     *       Reverts if the calculated output is lower. 
-     
-     Example: lets say user expects atleas 950 weth for 1000 USDC, and if output amount is 900 or >950 then revrets
-
+     *       Reverts if the calculated output is lower.
+     *
+     *  Example: lets say user expects atleas 950 weth for 1000 USDC, and if output amount is 900 or >950 then revrets
+     *
      * @param path Ordered list of token addresses describing the swap route. It is done in the frontend in the Uniswap where the user selects what to swap!
      *        Example: [USDC, WETH, LINK].
      *  @param to Recipient of the final output tokens.
@@ -66,26 +77,51 @@ contract UV2Router02 {
      *          Example:
      *          path    = [USDC, WETH, LINK]
      *          amounts = [1000, 0.4e18, 950e18]
-            
-                note and we added "s" in amounts beacuse it is an array and have more than one output so there you go!
-                
-
-
-     NOTE We will dig deep on getAmountsOut() function in the library and it is one of the important backdors for this function
-     But for here just get it like it gives the output amounts along with each path it goes through just like the above example!
-
+     *
+     *             note and we added "s" in amounts beacuse it is an array and have more than one output so there you go!
+     *
+     *
+     *
+     *  NOTE We will dig deep on getAmountsOut() function in the library and it is one of the important backdors for this function
+     *  But for here just get it like it gives the output amounts along with each path it goes through just like the above example!
+     *
      */
 
     function swappingExactTokensForTokens(
         uint256 inputAmount,
         uint256 minAmountOut,
         address[] calldata tokenSwappingPaths,
+        address to,
         uint256 deadline
-    ) external virtual override ensureExecutionTime(deadline) returns(uint256[] memory amounts){
+    ) external virtual override ensureExecutionTime(deadline) returns (uint256[] memory amounts) {
 
-amounts = UV2Library.getAmountsOut(inputAmount, );
+        amounts = UV2Library.getAmountsOut(i_factory, inputAmount, tokenSwappingPaths);
+        if(amounts[amounts.length - 1] < minAmountOut) {
+            revert UV2Router02___swappingExactTokensForTokens__InsufficientOutputAmount();
+        }
     }
 
-    function swappingTokensForExactTokens() external {}
+    //function swappingTokensForExactTokens() external {}
+
+
+    /**//////////////////////////////////////////////////////////////////////////////////////
+                                UV2LIBRARY FUNCTIONS     
+    ///////////////////////////////////////////////////////////////////////////////////////*/     
+
+function getAmountOut(uint256 amountIn, uint256 reserveIn, uint256 reserveOut) public view virtual override returns (uint256 amountOut) {
+        return UV2Library.getAmountOut(amountIn, reserveIn, reserveOut);
+    }
+    function getAmountsOut(uint256 amountIn, address[] memory path) public view virtual override returns(uint256[] memory amounts) {
+        return UV2Library.getAmountsOut(factory, amountIn, path);
+    }  
+    function getAmountIn(uint256 amountOut, uint256 reserveIn, uint256 reserveOut) public view virtual override returns (uint256 amountIn) {
+        return UV2Library.getAmountIn(amountOut, reserveIn, reserveOut);
+    }
+    function getAmountsIn(uint256 amountOut, address[] memory path) public view virtual override returns (uint256[] memory amounts) {
+        return UV2Library.getAmountsIn(factory, amountOut, path);
+    }
+    function quote(uint256 amountA, uint256 reserveA, uint256 reserveB) public view virtual override returns (uint256 amountB) {
+        return UV2Library.quote(amountA, reserveA, reserveB);
+    }
 }
 

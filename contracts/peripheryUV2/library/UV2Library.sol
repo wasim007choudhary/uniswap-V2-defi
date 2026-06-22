@@ -20,6 +20,7 @@ library UV2Library {
     error UV2Library__quote__Invalid_Reserves();
     error UV2Library__getAmountIn__Insufficient_AmountOut();
     error UV2Library_getAmountIn__Insufficient_Reserves();
+    error UV2Library__getAmountsIn__InvalidPath();
 
     /*//////////////////////////////////////////////////////////////
                             Internal Functions
@@ -50,7 +51,7 @@ library UV2Library {
      * @param reserveIn Current reserve of the input token.
      * @param reserveOut Current reserve of the output token.
      *
-     * @return outputAmount Maximum amount of output tokens obtainable for the
+     * @return amountOut Maximum amount of output tokens obtainable for the
      * given input amount.
      * ---------------------------------
      * @dev getAmountOut() only performs the swap calculation for a SINGLE pair.
@@ -74,7 +75,7 @@ library UV2Library {
     function getAmountOut(uint256 inputAmount, uint256 reserveIn, uint256 reserveOut)
         internal
         pure
-        returns (uint256 outputAmount)
+        returns (uint256 amountOut)
     {
         if (inputAmount == 0) {
             revert UV2Library__getAmountOut__InsufficientInputAmount();
@@ -305,7 +306,7 @@ library UV2Library {
         uint256 inputAmountWithFee = inputAmount * 997;
         uint256 numerator = inputAmountWithFee * reserveOut;
         uint256 denominator = inputAmountWithFee + (reserveIn * 1000);
-        outputAmount = numerator / denominator;
+        amountOut = numerator / denominator;
     }
     /**
      * -------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -1104,7 +1105,676 @@ library UV2Library {
     }
 
     /**
-     * ---------------------------------------------------------------------------------------------------------------------------------
-     * ---------------------------------------------------------------------------------------------------------------------------------
+     * -------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+     * -------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+     * @title getAmountsIn()
+     * @notice Calculates the minimum required input amount at each step of a swap route.
+     *
+     * @dev Serves as a route pricing engine by simulating swaps across one or more
+     *      liquidity pairs without executing any token transfers.
+     *
+     *      Uses the provided path to determine the swap route and iteratively
+     *      calculates the required input amount for each hop using current pair
+     *      reserves and the Uniswap V2 pricing formula.
+     *
+     *      Supports both:
+     *      - Single-hop routes (e.g. USDC -> WETH)
+     *      - Multi-hop routes (e.g. USDC -> WETH -> LINK)
+     *
+     *      Unlike getAmountsOut(), which starts with a known input amount and
+     *      calculates outputs moving forward through the path, this function starts
+     *      with a known output amount and calculates required inputs moving
+     *      backwards through the path.
+     *
+     *      The returned array contains the required token amount corresponding to
+     *      each token in the path. The required input of one hop determines the
+     *      required input of the previous hop.
+     *
+     *      Example:
+     *
+     *      Path:
+     *      [USDC, WETH, LINK]
+     *
+     *      Desired Output:
+     *      950 LINK
+     *
+     *      Returned:
+     *      [1000 USDC, 0.4 WETH, 950 LINK]
+     *
+     *      Meaning:
+     *
+     *      Need:
+     *      1000 USDC
+     *          ↓
+     *      To obtain:
+     *      0.4 WETH
+     *          ↓
+     *      To obtain:
+     *      950 LINK
+     *
+     *      This function is read-only and does not:
+     *      - transfer tokens
+     *      - execute swaps
+     *      - modify reserves
+     *      - change protocol state
+     *
+     * @param factory Address of the factory contract used to locate liquidity pairs.
+     * @param amountOut Desired amount of the final token in the route.
+     * @param path Ordered list of token addresses representing the swap route.
+     *
+     * @return amounts Required token amounts at each step of the route.
+     *
+     * Note: Think of this function as getAmountsOut() running in reverse.
+     *
+     * Note: Read the Multi-Hop Swap Input Calculator to get the full core of the function.
+     *
+     * @dev Check notes/Periphery/Library/UV2PLibrary--getAmountsIn.md and  Multi-Hop Swap Input Calculator natspec below for crazy indept disection with Q.A and recurring confusion points, reserve ordering discussions, loop walkthroughs and a clear mental model.
+     *
+     * @dev It is highly recommended to first read:
+     *      notes/Periphery/Library/UV2PLibrary--getAmountsOut.md and The Multi-Hop Swap Output Calculator natpsec of getAmountsOut() before reading this function,
+     *      since getAmountsIn() uses the exact same multi-hop mechanism,
+     *      only in the opposite direction.
      */
+
+    /**
+     *
+     *
+     *
+     * @notice Multi-Hop Swap Input Calculator
+     *
+     * @notice Calculates the minimum required input amounts for each step of a token
+     *         swap through multiple liquidity pools in order to obtain a desired
+     *         final output amount.
+     *
+     * ============================================================================
+     * 🎓 THE BIG PICTURE: What This Function Does
+     * ============================================================================
+     *
+     * Imagine you're trying to obtain a Mewtwo Pokémon card.
+     *
+     * Your friend tells you:
+     *
+     * "To get Mewtwo, you must first bring me a Charizard."
+     *
+     * Then another friend tells you:
+     *
+     * "To get Charizard, you must first bring me a Pikachu."
+     *
+     * This function works backwards through the trade route figuring out exactly
+     * what is required at every step BEFORE any swap occurs.
+     *
+     * It SIMULATES the entire swap route using current pool reserves to determine
+     * the minimum required inputs needed to reach the desired final output.
+     *
+     * It does NOT execute swaps.
+     *
+     * It only reads reserves and performs calculations.
+     *
+     * ============================================================================
+     * 🚂 THE TRAIN ANALOGY: Understanding Path vs Swaps
+     * ============================================================================
+     *
+     * Consider:
+     *
+     *      path = [TokenA, TokenB, TokenC]
+     *
+     *   🟢 PATH (Train Stations):  [TokenA] → [TokenB] → [TokenC]
+     *                                 🚉          🚉          🚉
+     *
+     *   🔵 SWAPS (Train Journeys): └─Journey 1─┘└─Journey 2─┘
+     *
+     *   📊 The Simple Rule:
+     *   ┌──────────────┬───────┬──────────────────────────────┐
+     *   │ What         │ Count │ Why?                         │
+     *   ├──────────────┼───────┼──────────────────────────────┤
+     *   │ Tokens       │   3   │ All stations (start to end) │
+     *   │ Swaps        │   2   │ Journeys BETWEEN stations   │
+     *   │ Formula      │       │ Swaps = Tokens - 1          │
+     *   └──────────────┴───────┴──────────────────────────────┘
+     *
+     *   ❌ COMMON MISTAKE: "3 tokens = 3 swaps"
+     *
+     *   ✅ CORRECT RULE:   "3 tokens = 2 swaps"
+     *
+     * Just like getAmountsOut(), each iteration processes ONE PAIR
+     * of adjacent tokens.
+     *
+     * ============================================================================
+     * 📋 THE DATA STRUCTURES: Two Arrays Working Together
+     * ============================================================================
+     *
+     * PATH tells us WHAT token:
+     *
+     *      path[i]
+     *
+     * AMOUNTS tells us HOW MANY:
+     *
+     *      amounts[i]
+     *
+     * They are PARALLEL ARRAYS synchronized by index.
+     *
+     * Example:
+     *
+     *   ┌───────┬────────────┬──────────────┬──────────────────────────┐
+     *   │ Index │ path[i]    │ amounts[i]   │ Meaning                  │
+     *   ├───────┼────────────┼──────────────┼──────────────────────────┤
+     *   │   0   │ TokenA     │ requiredIn   │ Initial required input   │
+     *   │   1   │ TokenB     │ requiredMid  │ Required intermediate    │
+     *   │   2   │ TokenC     │ amountOut    │ Desired final output     │
+     *   └───────┴────────────┴──────────────┴──────────────────────────┘
+     *
+     * Example:
+     *
+     *      amounts = [5, 9, 25]
+     *
+     * Means:
+     *
+     *      Need 5 TokenA
+     *          ↓
+     *      To get 9 TokenB
+     *          ↓
+     *      To get 25 TokenC
+     *
+     *   🧒 Child Analogy: Recipe Card & Shopping List
+     *
+     *   ┌─────────────────────────┬──────────────────────────┐
+     *   │ RECIPE (path)           │ SHOPPING LIST (amounts)  │
+     *   ├─────────────────────────┼──────────────────────────┤
+     *   │ Step 0: Flour           │ Need 20 cups            │
+     *   │ Step 1: Dough           │ Need 10 balls           │
+     *   │ Step 2: Cookies         │ Want 100 cookies        │
+     *   └─────────────────────────┴──────────────────────────┘
+     *
+     * Same index = Same step.
+     *
+     * path tells WHAT.
+     *
+     * amounts tells HOW MANY.
+     *
+     * ============================================================================
+     * 🏦 RESERVES BELONG TO PAIRS, NOT TOKENS
+     * ============================================================================
+     *
+     * Exactly like getAmountsOut().
+     *
+     *   ❌ WRONG THINKING:
+     *
+     *      "Reserve of TokenA"
+     *
+     *   ✅ CORRECT THINKING:
+     *
+     *      "Reserves of the TokenA/TokenB pair"
+     *
+     * Reserves always belong to a SPECIFIC PAIR.
+     *
+     * Example:
+     *
+     *   ┌─────────────────────────────────────────────┐
+     *   │ TokenA/TokenB Pool: 100 TokenA, 200 TokenB  │
+     *   │ TokenB/TokenC Pool: 500 TokenB, 1000 TokenC │
+     *   └─────────────────────────────────────────────┘
+     *
+     * TokenB appears in TWO different pools.
+     *
+     * Therefore TokenB has TWO different reserve contexts.
+     *
+     * ============================================================================
+     * 🔗 THE CHAINING MECHANISM: Future Requirements Determine Past Requirements
+     * ============================================================================
+     *
+     * This is the CORE IDEA behind getAmountsIn().
+     *
+     * Unlike getAmountsOut():
+     *
+     *      Output of swap #1
+     *          ↓
+     *      Input of swap #2
+     *
+     * Here:
+     *
+     *      Required input of swap #2
+     *          ↑
+     *      Determines required input of swap #1
+     *
+     * Visual Chain:
+     *
+     *   ┌────────────────────────────────────────────────────────────┐
+     *   │                                                            │
+     *   │  amounts[2] = 25 TokenC (desired final output)             │
+     *   │       ↑                                                    │
+     *   │  [SWAP #2: TokenB → TokenC]                                │
+     *   │       ↑                                                    │
+     *   │  amounts[1] = 9 TokenB (required for swap #2)              │
+     *   │       ↑                                                    │
+     *   │  [SWAP #1: TokenA → TokenB]                                │
+     *   │       ↑                                                    │
+     *   │  amounts[0] = 5 TokenA (required initial input)            │
+     *   │                                                            │
+     *   └────────────────────────────────────────────────────────────┘
+     *
+     * No one manually inserts the middle values.
+     *
+     * Each iteration calculates the required amount for the previous hop.
+     *
+     * ============================================================================
+     * 🔄 THE LOOP: How It Works Step By Step
+     * ============================================================================
+     *
+     * Loop condition:
+     *
+     *      for (
+     *          uint i = path.length - 1;
+     *          i > 0;
+     *          i--
+     *      )
+     *
+     * Unlike getAmountsOut():
+     *
+     *      i = 0 → 1 → 2
+     *
+     * This function walks:
+     *
+     *      i = 2 → 1 → stop
+     *
+     * because we are working backwards from the desired output.
+     *
+     * For:
+     *
+     *      path = [TokenA, TokenB, TokenC]
+     *
+     *      path.length = 3
+     *
+     * Iterations:
+     *
+     *      i = 2
+     *          Processes:
+     *              TokenB → TokenC
+     *
+     *      i = 1
+     *          Processes:
+     *              TokenA → TokenB
+     *
+     *      i = 0
+     *          Never executes
+     *
+     * because amounts[0] is already calculated when i = 1.
+     *
+     * ============================================================================
+     * 🎬 BEFORE THE LOOP STARTS: Initial Setup
+     * ============================================================================
+     *
+     * Assume:
+     *
+     *      amountOut = 25 TokenC
+     *
+     *      path = [TokenA, TokenB, TokenC]
+     *
+     * Step 1:
+     *
+     *      amounts = new uint[](path.length)
+     *
+     * Result:
+     *
+     *      amounts = [0,0,0]
+     *
+     * Step 2:
+     *
+     *      amounts[amounts.length - 1]
+     *          =
+     *      amountOut
+     *
+     * Result:
+     *
+     *      amounts = [0,0,25]
+     *
+     *                           ↑
+     *                  Desired output
+     *
+     * Unlike getAmountsOut(),
+     * we know the LAST amount first.
+     *
+     * ============================================================================
+     * 🔄 ITERATION #1 (i = 2): TokenB → TokenC
+     * ============================================================================
+     *
+     * Current state:
+     *
+     *      amounts = [?, ?, 25]
+     *
+     * Step 1:
+     *
+     *      path[i - 1]
+     *          =
+     *      path[1]
+     *          =
+     *      TokenB
+     *
+     *      path[i]
+     *          =
+     *      path[2]
+     *          =
+     *      TokenC
+     *
+     * Step 2:
+     *
+     *      getReserves(
+     *          factory,
+     *          TokenB,
+     *          TokenC
+     *      )
+     *
+     * Returns:
+     *
+     *      reserveIn
+     *      reserveOut
+     *
+     * for the TokenB/TokenC pair.
+     *
+     * Step 3:
+     *
+     *      getAmountIn(
+     *          amounts[2],
+     *          reserveIn,
+     *          reserveOut
+     *      )
+     *
+     * Question being asked:
+     *
+     *      "How much TokenB
+     *       is required
+     *       to obtain
+     *       25 TokenC?"
+     *
+     * Suppose result:
+     *
+     *      9 TokenB
+     *
+     * Step 4:
+     *
+     *      amounts[1] = 9
+     *
+     * Array becomes:
+     *
+     *      [?, 9, 25]
+     *
+     * ============================================================================
+     * 🔄 ITERATION #2 (i = 1): TokenA → TokenB
+     * ============================================================================
+     *
+     * Current state:
+     *
+     *      [?, 9, 25]
+     *
+     * ⚡ CRITICAL INSIGHT:
+     *
+     * Where did:
+     *
+     *      amounts[1] = 9
+     *
+     * come from?
+     *
+     * It was calculated by the previous iteration.
+     *
+     * This means:
+     *
+     *      Iteration #1:
+     *
+     *          Need 25 TokenC
+     *
+     *          ↓
+     *
+     *          Need 9 TokenB
+     *
+     *
+     *      Iteration #2:
+     *
+     *          Need 9 TokenB
+     *
+     *          ↓
+     *
+     *          Need ? TokenA
+     *
+     * Step 1:
+     *
+     *      getReserves(
+     *          factory,
+     *          TokenA,
+     *          TokenB
+     *      )
+     *
+     * Step 2:
+     *
+     *      getAmountIn(
+     *          amounts[1],
+     *          reserveIn,
+     *          reserveOut
+     *      )
+     *
+     * Suppose result:
+     *
+     *      5 TokenA
+     *
+     * Step 3:
+     *
+     *      amounts[0] = 5
+     *
+     * Final array:
+     *
+     *      [5, 9, 25]
+     *
+     * ============================================================================
+     * ⚠️ COMMON CONFUSION #1
+     * Why Doesn't The Loop Reach i = 0?
+     * ============================================================================
+     *
+     * Many people think:
+     *
+     *      Arrays start at 0.
+     *
+     *      Therefore the loop
+     *      should execute with i = 0.
+     *
+     * Not true.
+     *
+     * The assignment is:
+     *
+     *      amounts[i - 1]
+     *
+     * Therefore:
+     *
+     *      i = 2
+     *          fills index 1
+     *
+     *      i = 1
+     *          fills index 0
+     *
+     * Once index 0 is filled,
+     * there is nothing left to calculate.
+     *
+     * ============================================================================
+     * ⚠️ COMMON CONFUSION #2
+     * Why path[i - 1] Before path[i]?
+     * ============================================================================
+     *
+     * Example:
+     *
+     *      WETH → USDC → DAI
+     *
+     * At:
+     *
+     *      i = 2
+     *
+     * We ask:
+     *
+     *      "How much USDC
+     *       is required
+     *       to obtain DAI?"
+     *
+     * Therefore:
+     *
+     *      Input Token
+     *          =
+     *      USDC
+     *
+     *      Output Token
+     *          =
+     *      DAI
+     *
+     * Which is why:
+     *
+     *      getReserves(
+     *          factory,
+     *          USDC,
+     *          DAI
+     *      )
+     *
+     * is correct.
+     *
+     * ============================================================================
+     * ⚠️ COMMON CONFUSION #3
+     * Doesn't getReserves() Automatically Fix The Order?
+     * ============================================================================
+     *
+     * YES.
+     *
+     * For finding the pair.
+     *
+     * NO.
+     *
+     * For reserve ordering.
+     *
+     * Pair lookup is automatically corrected using:
+     *
+     *      sortTokens()
+     *
+     * However:
+     *
+     *      getReserves(
+     *          factory,
+     *          tokenA,
+     *          tokenB
+     *      )
+     *
+     * returns reserves in the SAME order
+     * requested by the caller.
+     *
+     * Therefore:
+     *
+     *      tokenA
+     *          ↔
+     *      reserveA
+     *
+     *      tokenB
+     *          ↔
+     *      reserveB
+     *
+     * remains true.
+     *
+     * ============================================================================
+     * 🏁 AFTER THE LOOP: The Complete Journey
+     * ============================================================================
+     *
+     * Final Result:
+     *
+     *      amounts = [5, 9, 25]
+     *
+     * Meaning:
+     *
+     *      Need 5 TokenA
+     *          ↓
+     *      To get 9 TokenB
+     *          ↓
+     *      To get 25 TokenC
+     *
+     * ============================================================================
+     * ✨ THE LOOP IN ONE SENTENCE
+     * ============================================================================
+     *
+     * Each iteration starts with a known output amount,
+     * asks how much input is required to obtain it,
+     * stores that required input,
+     * and then treats it as the target output for the previous hop.
+     *
+     * ============================================================================
+     * 📝 KEY INSIGHTS SUMMARY
+     * ============================================================================
+     *
+     * 1. Same path as getAmountsOut().
+     *
+     * 2. Same pools as getAmountsOut().
+     *
+     * 3. Same reserves as getAmountsOut().
+     *
+     * 4. Same multi-hop mechanism as getAmountsOut().
+     *
+     * 5. Uses getAmountIn() instead of getAmountOut().
+     *
+     * 6. Walks backwards instead of forwards.
+     *
+     * 7. Starts with amountOut instead of amountIn.
+     *
+     * 8. Calculates required inputs instead of expected outputs.
+     *
+     * ============================================================================
+     * 🎯 FINAL MENTAL MODEL
+     * ============================================================================
+     *
+     * getAmountsOut()
+     *
+     *      Known:
+     *          Initial Input
+     *
+     *      Direction:
+     *          →
+     *
+     *      Uses:
+     *          getAmountOut()
+     *
+     * ------------------------------------------------
+     *
+     * getAmountsIn()
+     *
+     *      Known:
+     *          Final Output
+     *
+     *      Direction:
+     *          ←
+     *
+     *      Uses:
+     *          getAmountIn()
+     *
+     * Same path.
+     *
+     * Same pools.
+     *
+     * Same reserves.
+     *
+     * Same AMM.
+     *
+     * Same multi-hop mechanism.
+     *
+     * Just running the movie backwards.
+     *
+     * @dev For a much deeper explanation, recurring confusion points,
+     *      Q&A, reserve-order discussions, loop walkthroughs,
+     *      child analogies, mental models and detailed dissection,
+     *      see notes/Periphery/Library/UV2Library--getAmountsOut.md first, then
+     *      notes/Periphery/Library/UV2Library--getAmountsIn.md. NOte Recommended to go through the MultiSwap Out Calculation of getAmountsOut first too.
+     */
+
+    function getAmountsIn(address factory, uint256 amountOut, address[] memory path)
+        internal
+        view
+        returns (uint256[] memory amounts)
+    {
+        if (path.length < 2) {
+            revert UV2Library__getAmountsIn__InvalidPath();
+        }
+        amounts = new uint256[](path.length);
+        amounts[amounts.length - 1] = amountOut; // say in the arry [ 10, 20 30] length = 3 but index = 2 so the last to access last element we do - 1 as we already also know last element
+        for (uint256 i = path.length - 1; i > 0; i--) {
+            (uint256 reserveIn, uint256 reserveOut) = getReserves(factory, path[i - 1], path[i]);
+            amounts[i - 1] = getAmountIn(amounts[i], reserveIn, reserveOut);
+        }
+    }
 }
