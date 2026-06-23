@@ -20,6 +20,66 @@ contract UV2Pair {
                                 MODIFIER
     //////////////////////////////////////////////////////////////*/
 
+    /**
+     * @notice Prevents reentrancy attacks on protected functions.
+     *
+     * @dev Think of this as a temporary "Do Not Enter" sign.
+     *
+     *      When a protected function starts executing:
+     *
+     *          locked = true
+     *
+     *      Any attempt to enter the same protected function again before
+     *      the current execution finishes will revert.
+     *
+     *      Example:
+     *
+     *          swap()
+     *              ↓
+     *          locked = true
+     *              ↓
+     *          external call
+     *              ↓
+     *          attacker tries swap() again
+     *              ↓
+     *          revert
+     *
+     *      Important:
+     *
+     *      This lock is NOT user-specific.
+     *
+     *      It does NOT mean:
+     *
+     *          User A is swapping
+     *          ↓
+     *          User B cannot swap
+     *
+     *      Ethereum already processes transactions one by one.
+     *
+     *      Instead, this modifier prevents nested execution paths inside
+     *      the same transaction.
+     *
+     *      In simple words:
+     *
+     *          "A protected function cannot enter itself again before
+     *           finishing its current execution."
+     *
+     *      Once execution completes:
+     *
+     *          locked = false
+     *
+     *      and future calls may proceed normally.
+     *
+     *      If execution reverts, EVM atomicity rolls back all state
+     *      changes, including:
+     *
+     *          locked = true
+     *
+     *      Therefore the contract can never become permanently locked
+     *      because of a reverted transaction.
+     *
+     * @custom:security My custom reentrancy guard that allows only one active execution of a protected function at a time.
+     */
     modifier myReentryPrevention() {
         if (islocked == true) {
             revert UV2Pair___modifier__myReentryPrevention_ReentryPrevention();
