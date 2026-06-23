@@ -79,6 +79,7 @@ contract UV2Pair {
      *      because of a reverted transaction.
      *
      * @custom:security My custom reentrancy guard that allows only one active execution of a protected function at a time.
+     *  @dev Didn't use the OpenZeppelin ReentrancyGuard to save gas and keep the contract lightweight and also during uniswap v2 development, I wanted to implement my own reentrancy guard to understand the underlying mechanics and have more control over its behavior + oepenzeppelin was not available at that time/ widely used overall !
      */
     modifier myReentryPrevention() {
         if (islocked == true) {
