@@ -11,8 +11,14 @@ import {MyTransferHelper} from "contracts/peripheryUV2/library/WTransferHelper.s
 /*//////////////////////////////////////////////////////////////
                         |  CONTRACT
 //////////////////////////////////////////////////////////////*/
-contract UV2Router02 is IUV2Router02{
-     /*//////////////////////////////////////////////////////////////
+contract UV2Router02 is IUV2Router02 {
+    /*//////////////////////////////////////////////////////////////
+                                ERRORS
+    //////////////////////////////////////////////////////////////*/
+    error UV2Router02___ExecutionTimeExceeded();
+    error UV2Router02___swappingExactTokensForTokens__InsufficientOutputAmount();
+
+    /*//////////////////////////////////////////////////////////////
                                 STATE VARIABLES
     //////////////////////////////////////////////////////////////*/
     address public immutable i_factory;
@@ -20,11 +26,6 @@ contract UV2Router02 is IUV2Router02{
     constructor(address _factory) {
         i_factory = _factory;
     }
-    /*//////////////////////////////////////////////////////////////
-                                ERRORS
-    //////////////////////////////////////////////////////////////*/
-    error UV2Router02___ExecutionTimeExceeded();
-    error UV2Router02___swappingExactTokensForTokens__InsufficientOutputAmount();
 
     /*//////////////////////////////////////////////////////////////
                              MODIFIER
@@ -53,19 +54,20 @@ contract UV2Router02 is IUV2Router02{
         _;
     }
 
-    function _swap(address[] memory path, address to, uint256[] memory amounts) internal internal {
-        for (uint256 i = 0; i < path.length - 1; i++){
+    function _swap(address[] memory path, address to, uint256[] memory amounts) internal {
+        for (uint256 i = 0; i < path.length - 1; i++) {
             (address input, address output) = (path[i], path[i + 1]);
-            (address token0, ) = UV2Library.sortTokens(input, output);
+            (address token0,) = UV2Library.sortTokens(input, output);
             uint256 amountOut = amounts[i + 1];
-            (uint256 amount0out, uint256 amount1out) = input == token0 ? (uint256(0), amountOut) : (amountOut, uint256(0));
+            (uint256 amount0out, uint256 amount1out) =
+                input == token0 ? (uint256(0), amountOut) : (amountOut, uint256(0));
             address _to = i < path.length - 2 ? UV2Library.pairFor(i_factory, output, path[i + 2]) : to;
-
+            //diseection pair.swap
         }
     }
 
-    /*//////////////////////////////////////////////////////////////
-                                External Functions
+    /*/////////////////////////////////////////////////////////////
+                               External Functions
     //////////////////////////////////////////////////////////////*/
     /**
      *   @notice Swaps an exact amount of input tokens for as many output tokens as possible.
@@ -106,34 +108,69 @@ contract UV2Router02 is IUV2Router02{
         address to,
         uint256 deadline
     ) external virtual override ensureExecutionTime(deadline) returns (uint256[] memory amounts) {
-
         amounts = UV2Library.getAmountsOut(i_factory, inputAmount, path);
-        if(amounts[amounts.length - 1] < minAmountOut) {
+        if (amounts[amounts.length - 1] < minAmountOut) {
             revert UV2Router02___swappingExactTokensForTokens__InsufficientOutputAmount();
         }
-        MyTransferHelper.safeTransferFrom(path[0],msg.sender, UV2Library.pairFor(i_factory, path[0], path[1]), amounts[0]);
+        MyTransferHelper.safeTrasnferFrom(
+            path[0], msg.sender, UV2Library.pairFor(i_factory, path[0], path[1]), amounts[0]
+        );
+        // dissection _swap
     }
 
     //function swappingTokensForExactTokens() external {}
 
+    /*/////////////////////////////////////////////////////////////////////////////////////
+                               UV2LIBRARY FUNCTIONS
+    //////////////////////////////////////////////////////////////////////////////////////*/
 
-    /**//////////////////////////////////////////////////////////////////////////////////////
-                                UV2LIBRARY FUNCTIONS     
-    ///////////////////////////////////////////////////////////////////////////////////////*/     
-
-function getAmountOut(uint256 amountIn, uint256 reserveIn, uint256 reserveOut) public view virtual override returns (uint256 amountOut) {
+    function getAmountOut(uint256 amountIn, uint256 reserveIn, uint256 reserveOut)
+        public
+        pure
+        virtual
+        override
+        returns (uint256 amountOut)
+    {
         return UV2Library.getAmountOut(amountIn, reserveIn, reserveOut);
     }
-    function getAmountsOut(uint256 amountIn, address[] memory path) public view virtual override returns(uint256[] memory amounts) {
-        return UV2Library.getAmountsOut(factory, amountIn, path);
-    }  
-    function getAmountIn(uint256 amountOut, uint256 reserveIn, uint256 reserveOut) public view virtual override returns (uint256 amountIn) {
+
+    function getAmountsOut(uint256 amountIn, address[] memory path)
+        public
+        view
+        virtual
+        override
+        returns (uint256[] memory amounts)
+    {
+        return UV2Library.getAmountsOut(i_factory, amountIn, path);
+    }
+
+    function getAmountIn(uint256 amountOut, uint256 reserveIn, uint256 reserveOut)
+        public
+        pure
+        virtual
+        override
+        returns (uint256 amountIn)
+    {
         return UV2Library.getAmountIn(amountOut, reserveIn, reserveOut);
     }
-    function getAmountsIn(uint256 amountOut, address[] memory path) public view virtual override returns (uint256[] memory amounts) {
-        return UV2Library.getAmountsIn(factory, amountOut, path);
+
+    function getAmountsIn(uint256 amountOut, address[] memory path)
+        public
+        view
+        virtual
+        override
+        returns (uint256[] memory amounts)
+    {
+        return UV2Library.getAmountsIn(i_factory, amountOut, path);
     }
-    function quote(uint256 amountA, uint256 reserveA, uint256 reserveB) public view virtual override returns (uint256 amountB) {
+
+    function quote(uint256 amountA, uint256 reserveA, uint256 reserveB)
+        public
+        pure
+        virtual
+        override
+        returns (uint256 amountB)
+    {
         return UV2Library.quote(amountA, reserveA, reserveB);
     }
 }
