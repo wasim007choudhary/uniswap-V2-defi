@@ -1931,7 +1931,7 @@ Core/Pair/UV2Pair--swap.md
 
 ---
 
-### Final Mental Model
+### Mental Model(In short)
 
 ```text
 Router._swap()

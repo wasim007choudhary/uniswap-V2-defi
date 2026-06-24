@@ -54,6 +54,125 @@ contract UV2Router02 is IUV2Router02 {
         }
         _;
     }
+    /**
+     *
+     * @notice Routes a swap through one or more Uniswap V2 Pairs.
+     *
+     * @dev This function is the Router's execution engine.
+     *
+     * Before entering `_swap()`:
+     * * Output amounts have already been calculated.
+     * * Slippage checks have already passed.
+     * * The initial input tokens have already been transferred
+     * to the first Pair.
+     *
+     * `_swap()` does NOT:
+     * * Calculate prices.
+     * * Calculate output amounts.
+     * * Collect user tokens.
+     *
+     * Instead it:
+     * * Iterates through the swap path.
+     * * Determines the current Pair.
+     * * Translates Router language (input/output)
+     * into Pair language (token0/token1).
+     * * Determines where the current output should be sent.
+     * * Invokes `Pair.swap()` for each hop.
+     *
+     * For multi-hop swaps, intermediate outputs are sent
+     * directly from one Pair to the next Pair without
+     * passing through the Router.
+     *
+     * Mental Model:
+     *
+     * getAmountsOut()
+     * ```
+     *   = Pricing Engine
+     *   ```
+     *
+     * _swap()
+     * ```
+     *   = Routing Engine
+     *   ```
+     *
+     * Pair.swap()
+     * ```
+     *   = Execution Engine
+     *   ```
+     *
+     * Router calculates.
+     * Pair enforces.
+     *
+     * @param path Ordered sequence of tokens describing
+     * the swap route.
+     *
+     * Example:
+     * [USDC, WETH, LINK]
+     *
+     * @param to Final recipient of the last output token.
+     *
+     * @param amounts Pre-calculated swap amounts where:
+     * * amounts[0] is the user input amount.
+     * * amounts[i + 1] is the expected output of hop i.
+     *
+     * @custom:routing
+     * If another hop exists:
+     *
+     * Current Pair
+     * ```
+     *   ↓
+     *   ```
+     * Next Pair
+     *
+     * Otherwise:
+     *
+     * Current Pair
+     * ```
+     *   ↓
+     *   ```
+     * Final Recipient
+     *
+     * @custom:note
+     * The final line:
+     *
+     * IUV2Pair(
+     * ```
+     *   UV2Library.pairFor(
+     *   ```
+     * ```
+     *       i_factory,
+     *   ```
+     * ```
+     *       input,
+     *   ```
+     * ```
+     *       output
+     *   ```
+     * ```
+     *   )
+     *   ```
+     * ).swap(
+     * ```
+     *   amount0out,
+     *   ```
+     * ```
+     *   amount1out,
+     *   ```
+     * ```
+     *   _to,
+     *   ```
+     * ```
+     *   new bytes(0)
+     *   ```
+     * );
+     *
+     * transfers control from the Router to the Pair.
+     *
+     * At that moment the Router's job is complete and
+     * swap execution continues inside `Pair.swap()`.
+     *
+     * @custom:see For a complete line-by-line breakdown see: notes/Periphery/router/_swap.md
+     */
 
     function _swap(address[] memory path, address to, uint256[] memory amounts) internal {
         for (uint256 i = 0; i < path.length - 1; i++) {
@@ -63,6 +182,7 @@ contract UV2Router02 is IUV2Router02 {
             (uint256 amount0out, uint256 amount1out) =
                 input == token0 ? (uint256(0), amountOut) : (amountOut, uint256(0));
             address _to = i < path.length - 2 ? UV2Library.pairFor(i_factory, output, path[i + 2]) : to;
+            ///@custom:see  for next IUV2pair.swap  see notes notes/Core/UV2Pair--swap.md for complete dissection
             IUV2Pair(UV2Library.pairFor(i_factory, input, output)).swap(amount0out, amount1out, to, new bytes(0));
         }
     }

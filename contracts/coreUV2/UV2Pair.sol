@@ -183,6 +183,58 @@ contract UV2Pair {
             revert UV2Pair___safeTransfer__TokenReturnDataError_TransferFailed();
         }
     }
+    /**
+     *
+     * @notice Executes a token swap while enforcing the fee-adjusted
+     * constant-product invariant.
+     *
+     * @dev Flow:
+     * * Verify output amounts.
+     * * Verify available liquidity.
+     * * Optimistically transfer outputs.
+     * * Execute flash swap callback (if applicable).
+     * * Measure actual balances.
+     * * Reconstruct input amounts.
+     * * Verify payment was received.
+     * * Enforce the fee-adjusted constant-product invariant (K).
+     * * Synchronize reserves through _update.
+     * * Emit the Swap event.
+     *
+     * Router calculates.
+     * Pair enforces.
+     *
+     * @param amount0out Amount of token0 to send out of the Pair.
+     * @param amount1out Amount of token1 to send out of the Pair.
+     * @param to Recipient of the output tokens.
+     * @param data Arbitrary callback data used for flash swaps.
+     *
+     * @custom:invariant
+     * After accounting for the 0.3% swap fee:
+     *
+     * balance0Adjusted * balance1Adjusted
+     * ```
+     *   >=
+     *   ```
+     * reserve0 * reserve1 * 1000^2
+     *
+     * This guarantees that the Pair's constant-product invariant cannot
+     * be violated and that value cannot be extracted from the pool without
+     * providing sufficient input tokens.
+     *
+     * @custom:reverts
+     * Reverts if:
+     * * No output amount is requested.
+     * * Insufficient liquidity exists.
+     * * Output tokens are sent to a token contract.
+     * * No input tokens are received.
+     * * The fee-adjusted invariant (K) would be violated.
+     *
+     *  @custom:see for Complete dissection and detialed q/a see: notes/Core/UV2Pair--swap.md
+     *
+     * @custom:see for _update: see  notes/Core/UV2Pair--update.md
+     * For a detailed breakdown of reserve synchronization, timestamp updates,
+     * cumulative price tracking, oracle accounting, and TWAP preparation.
+     */
 
     function swap(uint256 amount0out, uint256 amount1out, address to, bytes calldata data) external {
         if (amount0out <= 0 && amount1out <= 0) {
@@ -215,8 +267,8 @@ contract UV2Pair {
             balance1 = IERC20(_token1).balanceOf(address(this));
         }
 
-        uint256 amount0in = balance0 > reserve0 - amount0out ? balance0 - (reserve0 - amount0out) : 0;
-        uint256 amount1in = balance1 > reserve1 - amount1out ? balance1 - (reserve1 - amount1out) : 0;
+        uint256 amount0in = balance0 > reserve_0 - amount0out ? balance0 - (reserve_0 - amount0out) : 0;
+        uint256 amount1in = balance1 > reserve_1 - amount1out ? balance1 - (reserve_1 - amount1out) : 0;
 
         if (amount0in <= 0 && amount1in <= 0) {
             revert UV2Pair___swap__NoTokensDepositedInThePair();
