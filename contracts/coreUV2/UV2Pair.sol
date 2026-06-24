@@ -1,12 +1,24 @@
 //SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+/*////////////////////////////////////////////////////////
+                   IMPORTS
+////////////////////////////////////////////////////////*/
+import {IUV2Callee} from "contracts/coreUV2/Interface/IUV2Callee.sol";
+import {IERC20} from "contracts/coreUV2/Interface/IERC20.sol";
+
 contract UV2Pair {
     /*////////////////////////////////////////////////////////
                        ERRORS
     ////////////////////////////////////////////////////////*/
     error UV2Pair___modifier__myReentryPrevention_ReentryPrevention();
-
+    error UV2Pair___swap__InsufficientlIQUIDITYasInsuffientOutPutAmountInThePair();
+    error UV2Pair___swap__InsufficientOutPutAmountInThePair();
+    error UV2Pair___swap__InvalidAddressForSwapOutput();
+    error UV2Pair___safeTransfer__TransferNotSuccessful();
+    error UV2Pair___safeTransfer__TokenReturnDataError_TransferFailed();
+    error UV2Pair___swap__NoTokensDepositedInThePair();
+    error UV2Pair___swap__BrokeTheUniswapAMMconstantVariant__K();
     /*///////////////////////////////////////////////////////
                        STATE VARIABLES
     ////////////////////////////////////////////////////////*/
@@ -15,6 +27,9 @@ contract UV2Pair {
     uint32 timeStampLastUpdate; //  ^^^
 
     bool private islocked; // false by defaukt
+
+    address public token0;
+    address public token1;
 
     /*//////////////////////////////////////////////////////////////
                                 MODIFIER
@@ -147,11 +162,74 @@ contract UV2Pair {
      * @return _reserve1 Last recorded reserve for token1.
      * @return _timeStampLastUpdate Timestamp of the most recent reserve update.
      */
+
     function getReserves() public view returns (uint128 _reserve0, uint128 _reserve1, uint32 _timeStampLastUpdate) {
         _reserve0 = reserve0;
         _reserve1 = reserve1;
         _timeStampLastUpdate = timeStampLastUpdate;
     }
 
-    function swap(uint256 amount0out, uint256 amount1out, address to, bytes calldata data) external {}
+    /**
+     *  @dev  didnot useuswe MY WtrasferHelper here because here we will only use safe trasnfe and instead
+     * of importing the whole library, we can just use the safe transfer function here directly to save gas and keep the contract lightweight.
+     */
+    function _safeTransfer(address token, address to, uint256 value) private {
+        //bytes4(keccak256(bytes('transfer(address,uint256)'))) = 0xa9059cbb
+        (bool success, bytes memory data) = token.call(abi.encodeWithSelector(0xa9059cbb, to, value));
+        if (!success) {
+            revert UV2Pair___safeTransfer__TransferNotSuccessful();
+        }
+        if (data.length > 0 && !abi.decode(data, (bool))) {
+            revert UV2Pair___safeTransfer__TokenReturnDataError_TransferFailed();
+        }
+    }
+
+    function swap(uint256 amount0out, uint256 amount1out, address to, bytes calldata data) external {
+        if (amount0out <= 0 && amount1out <= 0) {
+            revert UV2Pair___swap__InsufficientOutPutAmountInThePair();
+        }
+        (uint128 reserve_0, uint128 reserve_1,) = getReserves();
+        if (amount0out >= reserve0 || amount1out >= reserve1) {
+            revert UV2Pair___swap__InsufficientlIQUIDITYasInsuffientOutPutAmountInThePair();
+        }
+        uint256 balance0;
+        uint256 balance1;
+        // to prevent stack too deep eror i.e {} we used here
+        {
+            address _token0 = token0;
+            address _token1 = token1;
+
+            if (to == _token0 || to == _token1) {
+                revert UV2Pair___swap__InvalidAddressForSwapOutput();
+            }
+            if (amount0out > 0) {
+                _safeTransfer(_token0, to, amount0out);
+            }
+            if (amount1out > 0) {
+                _safeTransfer(_token1, to, amount1out);
+            }
+            if (data.length > 0) {
+                IUV2Callee(to).uniswapV2Call(msg.sender, amount0out, amount1out, data);
+            }
+            balance0 = IERC20(_token0).balanceOf(address(this));
+            balance1 = IERC20(_token1).balanceOf(address(this));
+        }
+
+        uint256 amount0in = balance0 > reserve0 - amount0out ? balance0 - (reserve0 - amount0out) : 0;
+        uint256 amount1in = balance1 > reserve1 - amount1out ? balance1 - (reserve1 - amount1out) : 0;
+
+        if (amount0in <= 0 && amount1in <= 0) {
+            revert UV2Pair___swap__NoTokensDepositedInThePair();
+        }
+        // to prevent stack too deep eror i.e {} we used here
+        {
+            uint256 balance0Adjusted = (balance0 * 1000) - (amount0in * 3);
+            uint256 balance1Adjusted = (balance1 * 1000) - (amount1in * 3);
+            if ((balance0Adjusted * balance1Adjusted) < (uint256(reserve_0) * uint256(reserve_1)) * 1000 ** 2) {
+                revert UV2Pair___swap__BrokeTheUniswapAMMconstantVariant__K();
+            }
+        }
+        //now next line will route us to _update which we will disection next,
+        //this function all down only _update line and event emit swap which is ah non worrie, we will patch it up after _update so we get better conecetual mstery
+    }
 }
