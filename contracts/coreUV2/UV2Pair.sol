@@ -6,8 +6,34 @@ pragma solidity ^0.8.20;
 ////////////////////////////////////////////////////////*/
 import {IUV2Callee} from "contracts/coreUV2/Interface/IUV2Callee.sol";
 import {IERC20} from "contracts/coreUV2/Interface/IERC20.sol";
+import {IUV2Pair} from "contracts/coreUV2/Interface/IUV2Pair.sol";
 
-contract UV2Pair {
+contract UV2Pair is IUV2Pair {
+    /*///////////////////////////////////////////////////////
+                           STATE VARIABLES
+    ////////////////////////////////////////////////////////*/
+    uint128 reserve0; // will use only single sotrage slot as the below 2 cobined will give 256 hence 1 storage slot i.e. 128+128+64 = 256
+    uint128 reserve1; // ^^^
+    uint32 timeStampLastUpdate; //  ^^^
+
+    bool private islocked; // false by defaukt
+
+    address public token0;
+    address public token1;
+
+    address public immutable i_factory;
+
+    /*////////////////////////////////////////////////////////
+                       EVENTS
+    ////////////////////////////////////////////////////////*/
+    event swap(
+        address indexed sender,
+        uint256 amount0out,
+        uint256 amount0in,
+        uint256 amount1out,
+        uint256 amount1in,
+        address indexed to
+    );
     /*////////////////////////////////////////////////////////
                        ERRORS
     ////////////////////////////////////////////////////////*/
@@ -19,17 +45,6 @@ contract UV2Pair {
     error UV2Pair___safeTransfer__TokenReturnDataError_TransferFailed();
     error UV2Pair___swap__NoTokensDepositedInThePair();
     error UV2Pair___swap__BrokeTheUniswapAMMconstantVariant__K();
-    /*///////////////////////////////////////////////////////
-                       STATE VARIABLES
-    ////////////////////////////////////////////////////////*/
-    uint128 reserve0; // will use only single sotrage slot as the below 2 cobined will give 256 hence 1 storage slot i.e. 128+128+64 = 256
-    uint128 reserve1; // ^^^
-    uint32 timeStampLastUpdate; //  ^^^
-
-    bool private islocked; // false by defaukt
-
-    address public token0;
-    address public token1;
 
     /*//////////////////////////////////////////////////////////////
                                 MODIFIER
@@ -105,6 +120,12 @@ contract UV2Pair {
         islocked = false;
     }
 
+    /*///////////////////////////////////////////////////////
+                   CONSTRUCTOR
+    ///////////////////////////////////////////////////////*/
+    constructor() {
+        i_factory = msg.sender;
+    }
     /*///////////////////////////////////////////////////////
                   PUBLIC FUNCTIONS
      ///////////////////////////////////////////////////////*/
@@ -287,7 +308,7 @@ contract UV2Pair {
                 revert UV2Pair___swap__BrokeTheUniswapAMMconstantVariant__K();
             }
         }
-        //now next line will route us to _update which we will disection next,
-        //this function all down only _update line and event emit swap which is ah non worrie, we will patch it up after _update so we get better conecetual mstery
+        //_updatenow next line will route us to _update which we will disection next,
+        emit swap(msg.sender, amount0out, amount0in, amount1out, amount1in, to);
     }
 }
