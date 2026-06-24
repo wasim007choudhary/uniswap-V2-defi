@@ -188,6 +188,12 @@ contract UV2Pair {
      * @notice Executes a token swap while enforcing the fee-adjusted
      * constant-product invariant.
      *
+     *  @dev The Pair does not trust the Router, caller, or swap direction.
+     * Instead it reconstructs reality from reserve snapshots and current
+     * token balances, verifies payment was received, applies the 0.3% fee,
+     * enforces the fee-adjusted K invariant, synchronizes reserves, and
+     * emits a Swap event.
+     *
      * @dev Flow:
      * * Verify output amounts.
      * * Verify available liquidity.
