@@ -1810,3 +1810,145 @@ For a complete dissection of what happens after this call, see:
 ```text id="dkk7v8"
 notes/Core/Pair/UV2Pair--swap.md
 ```
+## Final Step of Router._swap()
+
+```solidity
+IUV2Pair(
+    UV2Library.pairFor(
+        i_factory,
+        input,
+        output
+    )
+).swap(
+    amount0Out,
+    amount1Out,
+    to,
+    new bytes(0)
+);
+```
+
+### Purpose
+
+At this point the Router has finished its job.
+
+The Router has already:
+
+* Determined the swap path
+* Calculated all output amounts
+* Determined the destination (`to`) address
+* Moved the initial input tokens into the first Pair(which happend before we entered _swap btw as I mention before at top)
+
+The only remaining task is to tell the Pair:
+
+```text
+"Execute the swap."
+```
+
+This line transfers control from:
+
+```text
+Router
+
+↓
+
+Pair
+```
+
+---
+
+### Mental Model
+
+```text
+Router
+=
+Planning Phase
+
+--------------------------------
+
+Pair
+=
+Execution Phase
+```
+
+The Router calculates what should happen.
+
+The Pair verifies that it can legally happen.
+
+---
+
+### Why `new bytes(0)`?
+
+```solidity
+new bytes(0)
+```
+
+means:
+
+```text
+No Flash Swap
+```
+
+Since the data is empty:
+
+```text
+data.length == 0
+```
+
+the Pair skips the flash swap callback.
+
+This is the standard swap path.
+
+---
+
+### What Happens Next?
+
+The Pair receives:
+
+```solidity
+swap(
+    amount0Out,
+    amount1Out,
+    to,
+    new bytes(0)
+);
+```
+
+and begins:
+
+* Liquidity checks
+* Output transfers
+* Balance accounting
+* Input reconstruction
+* Fee verification
+* K invariant verification
+* Reserve updates
+
+For a complete line-by-line breakdown see:
+
+```text
+Core/Pair/UV2Pair--swap.md
+```
+
+---
+
+### Final Mental Model
+
+```text
+Router._swap()
+
+↓
+
+Find Pair
+
+↓
+
+Call Pair.swap()
+
+↓
+
+Router's Job Complete
+
+↓
+
+Pair Takes Over
+```

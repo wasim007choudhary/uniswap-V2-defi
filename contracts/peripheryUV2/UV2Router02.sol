@@ -6,12 +6,13 @@ pragma solidity ^0.8.20;
 //////////////////////////////////////////////////////////////*/
 import {UV2Library} from "contracts/peripheryUV2/library/UV2Library.sol";
 import {IUV2Router02} from "contracts/peripheryUV2/Interfaces/IUV2Router02.sol";
+import {IUV2Pair} from "contracts/coreUV2/Interface/IUV2Pair.sol";
 import {MyTransferHelper} from "contracts/peripheryUV2/library/WTransferHelper.sol";
 
 /*//////////////////////////////////////////////////////////////
                         |  CONTRACT
 //////////////////////////////////////////////////////////////*/
-contract UV2Router02 is IUV2Router02, {
+contract UV2Router02 is IUV2Router02 {
     /*//////////////////////////////////////////////////////////////
                                 ERRORS
     //////////////////////////////////////////////////////////////*/
@@ -62,7 +63,7 @@ contract UV2Router02 is IUV2Router02, {
             (uint256 amount0out, uint256 amount1out) =
                 input == token0 ? (uint256(0), amountOut) : (amountOut, uint256(0));
             address _to = i < path.length - 2 ? UV2Library.pairFor(i_factory, output, path[i + 2]) : to;
-            //diseection pair.swap
+            IUV2Pair(UV2Library.pairFor(i_factory, input, output)).swap(amount0out, amount1out, to, new bytes(0));
         }
     }
 
