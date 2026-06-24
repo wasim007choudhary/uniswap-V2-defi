@@ -10,10 +10,10 @@ import {IUV2Pair} from "contracts/coreUV2/Interface/IUV2Pair.sol";
 
 contract UV2Pair is IUV2Pair {
     /*///////////////////////////////////////////////////////
-                           STATE VARIABLES
+                                  STATE VARIABLES
     ////////////////////////////////////////////////////////*/
-    uint128 reserve0; // will use only single sotrage slot as the below 2 cobined will give 256 hence 1 storage slot i.e. 128+128+64 = 256
-    uint128 reserve1; // ^^^
+    uint112 reserve0; // will use only single sotrage slot as the below 2 cobined will give 256 hence 1 storage slot i.e. 128+128+64 = 256
+    uint112 reserve1; // ^^^
     uint32 timeStampLastUpdate; //  ^^^
 
     bool private islocked; // false by defaukt
@@ -45,6 +45,7 @@ contract UV2Pair is IUV2Pair {
     error UV2Pair___safeTransfer__TokenReturnDataError_TransferFailed();
     error UV2Pair___swap__NoTokensDepositedInThePair();
     error UV2Pair___swap__BrokeTheUniswapAMMconstantVariant__K();
+    error UV2Pair___update__BalanceExceedsUint112duringDowncasting();
 
     /*//////////////////////////////////////////////////////////////
                                 MODIFIER
@@ -184,7 +185,7 @@ contract UV2Pair is IUV2Pair {
      * @return _timeStampLastUpdate Timestamp of the most recent reserve update.
      */
 
-    function getReserves() public view returns (uint128 _reserve0, uint128 _reserve1, uint32 _timeStampLastUpdate) {
+    function getReserves() public view returns (uint112 _reserve0, uint112 _reserve1, uint32 _timeStampLastUpdate) {
         _reserve0 = reserve0;
         _reserve1 = reserve1;
         _timeStampLastUpdate = timeStampLastUpdate;
@@ -204,6 +205,21 @@ contract UV2Pair is IUV2Pair {
             revert UV2Pair___safeTransfer__TokenReturnDataError_TransferFailed();
         }
     }
+
+    function _update(uint256 _balance0, uint256 _balance1, uint112 _reserve0, uint112 _reserve1) private {
+        if (_balance0 > type(uint112).max || _balance1 > type(uint112).max) {
+            revert UV2Pair___update__BalanceExceedsUint112duringDowncasting();
+        }
+        /// if soldity earlier version or want be more vocal and intentional then wrtie uint32(block.timestamp % 2**32) below
+        ///@custom:see notes/uint256 % 2**32 why , how it is done!, we are sol 8+ it it does autmatticaly for us
+        uint32 blockTimestamp = uint32(block.timestamp);
+        uint32 timeElaspedSinceLastUpdate;
+        unchecked {
+            timeElaspedSinceLastUpdate = blockTimestamp - timeStampLastUpdate;
+        }
+        if (timeElaspedSinceLastUpdate > 0 && _reserve0 != 0 && _reserve1 != 0) {}
+    }
+
     /**
      *
      * @notice Executes a token swap while enforcing the fee-adjusted
