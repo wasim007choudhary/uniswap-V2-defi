@@ -23,6 +23,8 @@ contract UV2Pair is IUV2Pair {
 
     address public immutable i_factory;
 
+    uint256 public price0CumulativeLast;
+
     /*////////////////////////////////////////////////////////
                        EVENTS
     ////////////////////////////////////////////////////////*/
