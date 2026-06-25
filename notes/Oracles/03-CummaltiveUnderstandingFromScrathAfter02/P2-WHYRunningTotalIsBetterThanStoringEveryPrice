@@ -1,0 +1,371 @@
+### Part 1.2 — Why A Running Total Is Better Than Storing Every Price
+
+Now that we've identified the problem, let's understand **why storing a single running total is such a brilliant idea.**
+
+Suppose the Pair starts with a running total of:
+
+```text
+Running Total = 0
+```
+
+The current price is
+
+```text
+10
+```
+
+and this price remains unchanged for
+
+```text
+5 seconds.
+```
+
+Instead of storing
+
+```text
+Price = 10
+```
+
+inside a historical array forever, Uniswap simply calculates that price's contribution.
+
+```text
+Running Total
+
+=
+
+0
+
++
+
+(10 × 5)
+
+=
+
+50
+```
+
+Notice something important.
+
+The contract did **not** store:
+
+```text
+Price = 10
+```
+
+It only stored the updated running total.
+
+---
+
+Now suppose the price changes.
+
+The new price becomes
+
+```text
+20
+```
+
+and remains there for
+
+```text
+3 seconds.
+```
+
+Again, instead of storing another historical record, we simply continue updating the running total.
+
+```text
+Running Total
+
+=
+
+50
+
++
+
+(20 × 3)
+
+=
+
+110
+```
+
+---
+
+Now the price changes again.
+
+Current price:
+
+```text
+30
+```
+
+Duration:
+
+```text
+2 seconds.
+```
+
+The running total becomes
+
+```text
+Running Total
+
+=
+
+110
+
++
+
+(30 × 2)
+
+=
+
+170
+```
+
+Again, notice something.
+
+We never permanently stored:
+
+```text
+10
+
+20
+
+30
+```
+
+Instead, we kept updating **one number**.
+
+---
+
+# What Is Actually Being Stored?
+
+Instead of storing
+
+```text
+Price₀
+
+Price₁
+
+Price₂
+
+Price₃
+
+...
+```
+
+Uniswap stores only
+
+```text
+Running Total
+```
+
+which continuously increases.
+
+This is the idea behind the **Cumulative Price**.
+
+---
+
+# Child Analogy — Saving Money
+
+Imagine you save money every day.
+
+### Bad approach
+
+You keep a notebook forever.
+
+```text
+Monday
+
+Saved ₹100
+```
+
+```text
+Tuesday
+
+Saved ₹50
+```
+
+```text
+Wednesday
+
+Saved ₹20
+```
+
+```text
+Thursday
+
+Saved ₹80
+```
+
+After several years, you'll have thousands of entries.
+
+---
+
+### Better approach
+
+Instead of writing every deposit forever, you only keep track of your **total savings**.
+
+```text
+Monday
+
+₹100
+```
+
+↓
+
+```text
+Tuesday
+
+₹150
+```
+
+↓
+
+```text
+Wednesday
+
+₹170
+```
+
+↓
+
+```text
+Thursday
+
+₹250
+```
+
+You no longer care about each individual deposit.
+
+You only care about the continuously increasing total.
+
+This total is called a **running total**.
+
+---
+
+# This Is Exactly What Uniswap Does
+
+Instead of remembering
+
+```text
+Price₀
+
+Price₁
+
+Price₂
+
+Price₃
+
+...
+```
+
+it continuously updates one value.
+
+```text
+Running Total
+
++=
+
+Current Price × Time Elapsed
+```
+
+This single value is called the **Cumulative Price**.
+
+---
+
+# Wait A Minute...
+
+Earlier, while learning TWAP, we derived the numerator as
+
+```text
+Σ(ΔT × Price)
+```
+
+Now look at what we are doing.
+
+First price:
+
+```text
+Running Total += 10 × 5
+```
+
+↓
+
+Second price:
+
+```text
+Running Total += 20 × 3
+```
+
+↓
+
+Third price:
+
+```text
+Running Total += 30 × 2
+```
+
+Wait...
+
+Isn't this exactly the same thing as
+
+```text
+Σ(ΔT × Price)
+```
+
+Yes.
+
+This is one of the biggest realizations in the Uniswap oracle.
+
+Instead of calculating
+
+```text
+Σ(ΔT × Price)
+```
+
+later by replaying years of historical prices, Uniswap continuously builds that summation as swaps occur.
+
+Every time reserves change, it simply performs:
+
+```text
+Running Total
+
++=
+
+Current Price × Time Elapsed
+```
+
+By the time someone asks for a TWAP, most of the work has already been done.
+
+The numerator has been accumulating since the Pair was created.
+
+---
+
+# Huge Advantage
+
+Suppose someone asks for the TWAP today.
+
+Does Uniswap:
+
+### Option A
+
+Loop through ten years of historical prices and calculate
+
+```text
+Σ(ΔT × Price)
+```
+
+from scratch?
+
+No.
+
+### Option B
+
+Already have that summation stored as one cumulative number?
+
+Yes.
+
+This is precisely why the cumulative price exists.
+
+Instead of reconstructing history every time someone needs a TWAP, Uniswap continuously builds that history into one ever-increasing value.
