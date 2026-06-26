@@ -1883,7 +1883,7 @@ Purpose:
 
 ```text
 Store the current balances
-as the new reserves.
+as the new reserves. Also it acts as Price Oracle which you will go in dept in while dissecting that function
 ```
 
 The swap has already been validated.
@@ -1892,7 +1892,7 @@ The swap has already been validated.
 
 For a complete line-by-line breakdown see:
 
-UV2Pair--_update.md
+**notes/Core/UV2Pair--_update.md** after this then go to **notes/Oracles** and clean it up all! You will undrstand some crazy stuff there. GGs
 
 ---
 

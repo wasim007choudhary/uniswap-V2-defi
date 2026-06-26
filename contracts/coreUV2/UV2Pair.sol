@@ -8,6 +8,8 @@ import {IUV2Callee} from "contracts/coreUV2/Interface/IUV2Callee.sol";
 import {IERC20} from "contracts/coreUV2/Interface/IERC20.sol";
 import {IUV2Pair} from "contracts/coreUV2/Interface/IUV2Pair.sol";
 
+import {UQ112xUQ112} from "contracts/coreUV2/library/UQ112x112.sol";
+
 contract UV2Pair is IUV2Pair {
     /*///////////////////////////////////////////////////////
                                   STATE VARIABLES
@@ -24,6 +26,7 @@ contract UV2Pair is IUV2Pair {
     address public immutable i_factory;
 
     uint256 public price0CumulativeLast;
+    uint256 public price1CumulativeLast;
 
     /*////////////////////////////////////////////////////////
                        EVENTS
@@ -36,6 +39,7 @@ contract UV2Pair is IUV2Pair {
         uint256 amount1in,
         address indexed to
     );
+    event Sync(uint112 reserve_0, uint112 reserve_1);
     /*////////////////////////////////////////////////////////
                        ERRORS
     ////////////////////////////////////////////////////////*/
@@ -125,13 +129,14 @@ contract UV2Pair is IUV2Pair {
 
     /*///////////////////////////////////////////////////////
                    CONSTRUCTOR
-    ///////////////////////////////////////////////////////*/
+     ///////////////////////////////////////////////////////*/
     constructor() {
         i_factory = msg.sender;
     }
     /*///////////////////////////////////////////////////////
                   PUBLIC FUNCTIONS
      ///////////////////////////////////////////////////////*/
+
     /**
      * @notice Returns the Pair's last recorded reserves and reserve update timestamp.
      *
@@ -208,6 +213,64 @@ contract UV2Pair is IUV2Pair {
         }
     }
 
+    //-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+    /**
+     * @notice Synchronizes the Pair's internal state after balances have changed.
+     * @dev This is the heart of the Pair's bookkeeping. It performs five major tasks:
+     *
+     * 1. Verifies that the latest ERC-20 balances can safely fit into the packed
+     *    `uint112` reserve storage layout.
+     *
+     * 2. Computes the elapsed time since the previous update using a 32-bit circular
+     *    timestamp. The subtraction intentionally wraps on overflow to correctly
+     *    handle timestamp rollover.
+     *
+     * 3. Updates the cumulative price oracles (TWAP data) whenever:
+     *      - time has elapsed, and
+     *      - both reserves are non-zero.
+     *
+     *    The cumulative values are not the TWAP itself. They are continuously
+     *    accumulated `price × time` values which external protocols later use to
+     *    compute a Time-Weighted Average Price (TWAP) by comparing two snapshots.
+     *
+     * 4. Replaces the old stored reserves with the latest ERC-20 balances after all
+     *    oracle calculations have completed.
+     *
+     * 5. Stores the new timestamp and emits a {Sync} event so off-chain applications,
+     *    indexers, explorers and other protocols can observe the reserve update.
+     *
+     * @param _balance0 Current ERC-20 balance of token0 held by the Pair.
+     *                  Retrieved via `IERC20(token0).balanceOf(address(this))`.
+     *                  Kept as `uint256` because ERC-20 balances naturally return
+     *                  `uint256`. Only after verifying that the value fits safely
+     *                  into 112 bits is it downcast and stored as a reserve.
+     *
+     * @param _balance1 Current ERC-20 balance of token1 held by the Pair.
+     *                  Behaves identically to `_balance0`.
+     *
+     * @param _reserve0 Previous stored reserve of token0.
+     *                  Passed by the caller instead of being repeatedly read from
+     *                  storage. This avoids additional expensive `SLOAD`
+     *                  operations and guarantees every calculation inside this
+     *                  function uses the same snapshot of the old reserves.
+     *
+     * @param _reserve1 Previous stored reserve of token1.
+     *                  Behaves identically to `_reserve0`.
+     *
+     * @custom:gas The old reserves are loaded from storage once by the caller and
+     * reused throughout this function, avoiding repeated `SLOAD` operations.
+     *
+     * @custom:oracle The cumulative price variables store running `price × time`
+     * totals. They are designed for external TWAP consumers (lending protocols,
+     * oracles, etc.) and do not represent the average price themselves.
+     *
+     * @custom:overflow Timestamp subtraction intentionally wraps around the
+     * 32-bit clock. In Solidity 0.8+, this behavior requires an `unchecked`
+     * block because arithmetic overflow otherwise reverts.
+     *
+     * @custom:see notes/UV2Pair/_update.md
+     * @custom:see notes/Oracles/ - ALL OF THEM
+     */
     function _update(uint256 _balance0, uint256 _balance1, uint112 _reserve0, uint112 _reserve1) private {
         if (_balance0 > type(uint112).max || _balance1 > type(uint112).max) {
             revert UV2Pair___update__BalanceExceedsUint112duringDowncasting();
@@ -215,13 +278,21 @@ contract UV2Pair is IUV2Pair {
         /// if soldity earlier version or want be more vocal and intentional then wrtie uint32(block.timestamp % 2**32) below
         ///@custom:see notes/uint256 % 2**32 why , how it is done!, we are sol 8+ it it does autmatticaly for us
         uint32 blockTimestamp = uint32(block.timestamp);
-        uint32 timeElaspedSinceLastUpdate;
+        uint32 timeElasped;
+        // modern solidity to desrie overflow we goota do unchecked or else it will revert
         unchecked {
-            timeElaspedSinceLastUpdate = blockTimestamp - timeStampLastUpdate;
+            timeElasped = blockTimestamp - timeStampLastUpdate;
         }
-        if (timeElaspedSinceLastUpdate > 0 && _reserve0 != 0 && _reserve1 != 0) {}
+        if (timeElasped > 0 && _reserve0 != 0 && _reserve1 != 0) {
+            price0CumulativeLast += uint256(UQ112xUQ112.encode(_reserve1).uqdiv(_reserve0)) * timeElasped;
+            price1CumulativeLast += uint256(UQ112xUQ112.encode(_reserve0).uqdiv(_reserve1)) * timeElasped;
+        }
+        _reserve0 = uint112(_balance0);
+        _reserve1 = uint112(_balance1);
+        timeStampLastUpdate = blockTimestamp;
+        emit Sync(_reserve0, reserve1);
     }
-
+    //-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     /**
      *
      * @notice Executes a token swap while enforcing the fee-adjusted
@@ -326,7 +397,39 @@ contract UV2Pair is IUV2Pair {
                 revert UV2Pair___swap__BrokeTheUniswapAMMconstantVariant__K();
             }
         }
-        //_updatenow next line will route us to _update which we will disection next,
+        _update(balance0, balance1, reserve_0, reserve_1);
         emit swap(msg.sender, amount0out, amount0in, amount1out, amount1in, to);
+    }
+
+    //-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+    /**
+     * @notice Forces the Pair's stored reserves to match its current ERC-20 balances.
+     *
+     * @dev Reads the actual token balances held by the Pair contract and commits
+     * them as the new reserves by calling {_update()}.
+     *
+     * This function is useful when tokens are transferred directly to the Pair
+     * contract without going through `mint()`, `burn()`, or `swap()`. In those
+     * situations, the ERC-20 balances change, but the stored reserves remain
+     * outdated until `sync()` is called.
+     *
+     * Internally this function:
+     * - Reads the current `token0` balance.
+     * - Reads the current `token1` balance.
+     * - Passes the previous reserves and current balances into {_update()}.
+     * - Updates the TWAP oracle if time has elapsed.
+     * - Synchronizes the stored reserves with reality.
+     * - Emits a {Sync} event.
+     *
+     * Protected by the `lock` modifier to prevent reentrant state updates.
+     *
+     * @custom:gas The previous reserves are passed directly to {_update()}
+     * instead of being read again from storage, avoiding redundant `SLOAD`
+     * operations.
+     *
+     * @custom:see {_update}
+     */
+    function sync() external myReentryPrevention {
+        _update(IERC20(token0).balanceOf(address(this)), IERC20(token1).balanceOf(address(this)), reserve0, reserve1);
     }
 }
