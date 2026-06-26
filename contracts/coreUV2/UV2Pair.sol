@@ -31,7 +31,7 @@ contract UV2Pair is IUV2Pair {
     /*////////////////////////////////////////////////////////
                        EVENTS
     ////////////////////////////////////////////////////////*/
-    event swap(
+    event Swap(
         address indexed sender,
         uint256 amount0out,
         uint256 amount0in,
@@ -398,7 +398,7 @@ contract UV2Pair is IUV2Pair {
             }
         }
         _update(balance0, balance1, reserve_0, reserve_1);
-        emit swap(msg.sender, amount0out, amount0in, amount1out, amount1in, to);
+        emit Swap(msg.sender, amount0out, amount0in, amount1out, amount1in, to);
     }
 
     //-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
