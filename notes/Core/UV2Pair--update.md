@@ -682,7 +682,11 @@ Oracle Accounting Function
 
 ---
 
-# NOT YET COVERED
+# The rest are covered in **oracles/Oraclecles, go throgh all the notes one by one and you will get all that.
+>The code lines look small below but it contains crazy stuffs, TWAP,custom uint224 in Q122.122, Cumulative, wwat uniswap uses and why not, who wuses twap , for whom the this lines were created. Please go trhough the and Come back. 
+**Read all of them**
+
+
 
 ```solidity
 price0CumulativeLast +=
