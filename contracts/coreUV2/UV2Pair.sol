@@ -181,12 +181,7 @@ contract UV2Pair is IUV2Pair {
      * @return _timeStampLastUpdate Timestamp of the most recent reserve update.
      */
 
-    function getReserves()
-        public
-        view
-        override
-        returns (uint112 _reserve0, uint112 _reserve1, uint32 _timeStampLastUpdate)
-    {
+    function getReserves() public view returns (uint112 _reserve0, uint112 _reserve1, uint32 _timeStampLastUpdate) {
         _reserve0 = reserve0;
         _reserve1 = reserve1;
         _timeStampLastUpdate = timeStampLastUpdate;
@@ -346,7 +341,7 @@ contract UV2Pair is IUV2Pair {
      * cumulative price tracking, oracle accounting, and TWAP preparation.
      */
 
-    function swap(uint256 amount0out, uint256 amount1out, address to, bytes calldata data) external override {
+    function swap(uint256 amount0out, uint256 amount1out, address to, bytes calldata data) external {
         if (amount0out <= 0 && amount1out <= 0) {
             revert UV2Pair___swap__InsufficientOutPutAmountInThePair();
         }
@@ -428,7 +423,7 @@ contract UV2Pair is IUV2Pair {
     }
 
     // didnt want to name the function I_Factory in the interface in order to match so here you go;
-    function factory() external view override returns (address) {
+    function factory() external view returns (address) {
         return i_factory;
     }
 }
