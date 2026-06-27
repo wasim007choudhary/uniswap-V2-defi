@@ -11,4 +11,10 @@ contract UV2Factory is IUV2Factory {
 
     mapping(address => mapping(address => address)) public getPair;
     address[] public allPairs;
+
+    //event in interface only emiiting here
+
+    constructor(address _feeToAddressSetter) {
+        feeToAddressSetter = _feeToAddressSetter;
+    }
 }
