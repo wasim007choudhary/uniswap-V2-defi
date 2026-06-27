@@ -8,4 +8,7 @@ import {IUV2Factory} from "contracts/coreUV2/Interface/IUV2Factory.sol";
 contract UV2Factory is IUV2Factory {
     address public feeTo;
     address public feeToAddressSetter;
+
+    mapping(address => mapping(address => address)) public getPair;
+    address[] public allPairs;
 }
