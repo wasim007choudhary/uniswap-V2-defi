@@ -2,37 +2,57 @@
 
 ## First Thought
 
-Before reading a single line of `UniswapV2Factory.sol`, the first question naturally arises:
+Before reading a single line of `UniswapV2Factory.sol`, the first question naturally came to mind.
 
 > **Why does Uniswap even need a Factory contract?**
 
-After all, if a `UniswapV2Pair` contract manages a liquidity pool, why can't users simply deploy Pair contracts themselves?
+If a `UniswapV2Pair` manages a liquidity pool, why can't users simply deploy Pair contracts themselves?
 
-Initially, this feels like a perfectly reasonable idea.
-
-Suppose Alice wants to create an:
-
-```text
-ETH / USDC
-```
-
-liquidity pool.
-
-Why can't Alice simply deploy a new `UniswapV2Pair` contract?
+Initially, this sounded completely reasonable.
 
 ---
 
 ## Discussion
 
-Imagine the Factory contract does not exist.
+Imagine the Factory contract never existed.
 
-Alice deploys:
+The only contract available is:
 
 ```text
-ETH / USDC Pair
+UniswapV2Pair
 ```
 
-A few minutes later,
+Now suppose Alice wants to create an:
+
+```text
+ETH / USDC
+```
+
+pool.
+
+### Question
+
+Who deploys the Pair?
+
+Possible answers could be:
+
+```text
+A) Alice
+
+B) Uniswap Team
+
+C) Anyone
+
+D) Something Else
+```
+
+At first, we assumed Alice simply deploys the Pair herself.
+
+---
+
+## Next Scenario
+
+A few minutes later...
 
 Bob also wants an:
 
@@ -42,7 +62,7 @@ ETH / USDC
 
 pool.
 
-At first, two possibilities seem possible.
+Now two possibilities exist.
 
 ### Option A
 
@@ -50,23 +70,27 @@ Bob reuses Alice's Pair.
 
 ### Option B
 
-Bob deploys another `ETH / USDC` Pair.
+Bob deploys another Pair.
 
-Initially, it might seem that both options are acceptable.
+At this point the immediate answer was:
 
-However, after thinking about it, we realized that **reusing the existing Pair is the only sensible choice.**
+> **Reuse. Better.**
 
 ---
 
 ## Question
 
-Why is reusing the existing Pair better?
+Why is reusing better?
+
+At first glance, both options seem perfectly valid.
+
+So we started thinking about the consequences.
 
 ---
 
 ## Discovery #1 — User Confusion
 
-Suppose multiple `ETH / USDC` Pairs exist.
+Suppose multiple ETH / USDC pools exist.
 
 ```text
 ETH / USDC Pair #1
@@ -76,24 +100,23 @@ ETH / USDC Pair #2
 ETH / USDC Pair #3
 ```
 
-A new user now faces several questions.
+Now every new user has to ask:
 
-* Which pool should I trade against?
-* Which one is the official pool?
+* Which one should I trade against?
 * Which one should I provide liquidity to?
-* Which one has the deepest liquidity?
+* Which one is the "official" pool?
 
-There is no longer a single canonical liquidity pool.
+There is no canonical liquidity pool anymore.
 
-This creates unnecessary confusion for every user interacting with the protocol.
+Immediately, unnecessary confusion is introduced into the protocol.
+
+This was our first realization.
 
 ---
 
 ## Discovery #2 — Liquidity Fragmentation
 
-Instead of having one large liquidity pool,
-
-the liquidity becomes spread across many smaller pools.
+Suppose instead of everyone using one pool, everyone creates their own.
 
 Instead of:
 
@@ -101,7 +124,6 @@ Instead of:
 ETH / USDC
 
 1000 ETH
-2,000,000 USDC
 ```
 
 we might have:
@@ -111,124 +133,189 @@ Pool A
 
 100 ETH
 
-----------------
+------------------
 
 Pool B
 
 250 ETH
 
-----------------
+------------------
 
 Pool C
 
 650 ETH
 ```
 
-The liquidity is fragmented.
+Liquidity is no longer shared.
 
-Rather than everyone sharing one deep pool,
-
-users are divided across multiple shallow pools.
+Instead, it becomes fragmented across many pools.
 
 ---
 
-## Discovery #3 — Larger Price Fluctuations
+## Discussion
 
-One of the biggest realizations during our discussion was:
+At this point another question came up.
 
-> **The larger the liquidity pool, the smaller the price fluctuation caused by a single trade.**
-
-Conversely,
-
-the smaller the pool,
-
-the larger the price movement.
-
-Suppose someone buys:
+Suppose someone wants to buy:
 
 ```text
 10 ETH
 ```
 
-from a pool containing only:
+Which situation is better?
+
+### Small Pool
 
 ```text
 10 ETH
 ```
 
-The trade dramatically changes the reserves,
+or
 
-causing significant slippage and price movement.
-
-Now compare that to a pool containing:
+### Large Pool
 
 ```text
 1000 ETH
 ```
 
-The exact same trade barely affects the reserves,
+The realization was immediate.
 
-resulting in much smaller price movement.
+> **The bigger the pool, the smaller the price fluctuation caused by a single trade.**
 
-A deep liquidity pool creates a much more stable market.
+Conversely,
+
+> **The smaller the pool, the larger the price fluctuation.**
+
+Exactly the same trade produces completely different price movement depending on the available liquidity.
 
 ---
 
-## Discovery #4 — Different Prices
+## Child Analogy
 
-If multiple pools exist,
+Think about throwing the same rock.
 
-they can each have different reserve ratios.
-
-For example:
+### Small Pond
 
 ```text
-Pool A
+💧
 
-Price
-
-=
-
-2000 USDC / ETH
+Huge Splash
 ```
 
-while another pool may have:
+### Ocean
 
 ```text
-Pool B
+🌊
 
-Price
-
-=
-
-2350 USDC / ETH
+Tiny Ripple
 ```
 
-Now there is no single market price.
+The rock is identical.
 
-Different users may receive completely different prices depending on which pool they interact with.
+Only the amount of water changes.
+
+Liquidity behaves exactly the same way.
+
+Large liquidity absorbs trades much better than small liquidity.
+
+---
+
+## Discovery #3 — Different Prices
+
+Suppose two ETH / USDC pools now exist.
+
+Pool A might currently price ETH at:
+
+```text
+2000 USDC
+```
+
+while Pool B might already be at:
+
+```text
+2350 USDC
+```
+
+Now users trading the exact same asset pair receive different prices depending on which pool they accidentally choose.
+
+There is no single market anymore.
+
+---
+
+## Question
+
+Suppose we have:
+
+```text
+100 Users
+```
+
+Would we rather have:
+
+### Option A
+
+```text
+10 Pools
+
+Each With
+
+100 ETH
+```
+
+or
+
+### Option B
+
+```text
+1 Pool
+
+With
+
+1000 ETH
+```
+
+The answer became obvious.
+
+> **One large shared pool.**
+
+It provides:
+
+* deeper liquidity,
+* smaller price fluctuations,
+* lower slippage,
+* and a much better user experience.
 
 ---
 
 ## Realization
 
-At this point, we realized that allowing everyone to deploy Pair contracts freely would create several major problems.
+At this point we realized something important.
 
-* User confusion.
-* Liquidity fragmentation.
-* Higher slippage.
-* Larger price fluctuations.
-* Multiple competing prices for the same token pair.
+The problem is **not** that users can deploy Pair contracts.
 
-Clearly, there should only be **one official Pair contract** for every unique token combination.
+The problem is allowing everyone to deploy their **own version of the same Pair.**
+
+There should only ever be:
+
+```text
+One
+
+ETH / USDC
+
+Pair
+```
+
+not hundreds of them.
 
 ---
 
 ## Solution
 
-Instead of allowing users to deploy Pair contracts directly,
+Instead of everyone deploying Pair contracts directly,
 
 everyone asks a central contract.
+
+Conceptually:
 
 ```text
 User
@@ -243,36 +330,54 @@ Does Pair Already Exist?
 
 ├── Yes
 
-│     ↓
+│
 
-│     Return Existing Pair
+│   Return Existing Pair
 
 │
 
 └── No
 
-      ↓
+    ↓
 
-      Deploy New Pair
+    Create New Pair
 ```
 
-The Factory becomes the single source of truth for every liquidity pool in the protocol.
+The Factory becomes the protocol's registry.
 
 ---
 
 ## During Our Discussion
 
-While thinking about duplicate pools, an interesting idea came up.
+While thinking about duplicate pools, another idea came up.
+
+The thought was:
 
 > "First we make sure the pool gets deployed, and later if someone tries to deploy again we cancel them because they will have the same address."
 
-This intuition is actually very close to how Uniswap works.
+This intuition is actually very close to the real implementation.
 
-However, an important distinction exists.
+However, there is an important distinction.
 
-The Factory does **not** primarily rely on deployment failure to detect duplicates.
+---
 
-Instead, before deploying anything, it first checks its internal registry.
+## Registry vs CREATE2
+
+Initially it seems like Uniswap could simply rely on CREATE2.
+
+Since CREATE2 produces deterministic addresses,
+
+deploying the same Pair twice would naturally fail.
+
+That is true.
+
+However,
+
+the Factory doesn't wait for deployment to fail.
+
+Instead,
+
+it first checks its registry.
 
 Conceptually:
 
@@ -288,9 +393,9 @@ Yes
 Revert Immediately
 ```
 
-Only if no Pair exists does deployment continue.
+Only after passing this check does deployment continue.
 
-Later, when we study `createPair()`, we will see this implemented using:
+Later we'll study this line:
 
 ```solidity
 require(
@@ -299,66 +404,61 @@ require(
 );
 ```
 
+The registry is the first layer of protection.
+
+CREATE2 provides an additional guarantee through deterministic deployment.
+
 ---
 
 ## CREATE2
 
-During our discussion, we also connected this idea with `CREATE2`.
+During the discussion we also connected this with CREATE2.
 
-Because Uniswap uses `CREATE2`, the Pair contract's deployment address can be computed **before** the contract is deployed.
+Because CREATE2 computes deterministic deployment addresses,
 
-This provides deterministic deployment addresses.
+the Pair's address can be known before deployment.
 
 However,
 
-the Factory still performs an explicit registry check before attempting deployment.
+this chapter only introduces that idea.
 
-So conceptually, there are two layers of protection.
+The complete deep dive—including:
 
-```text
-Layer 1
+* Why CREATE2 exists.
+* CREATE vs CREATE2.
+* Deterministic deployment.
+* Address calculation.
+* Salt.
+* Bytecode.
+* Assembly.
+* EVM execution.
+* Security.
+* Mental models.
 
-Registry (getPair)
-
-↓
-
-Prevent Duplicate Request
-
-----------------------------
-
-Layer 2
-
-CREATE2
-
-↓
-
-Deterministic Address
-
-↓
-
-Deployment Cannot Occupy The Same Address Twice
-```
-
-This chapter only introduces that idea.
-
-A complete first-principles explanation of `CREATE2`, deterministic deployment, address computation, salts, bytecode, and the EVM internals is covered separately in:
+is covered separately in:
 
 ```text
 notes/Periphery/Library/Library/UV2Plibrary--PairForAndCreate2.md
 ```
 
+This chapter focuses only on why the Factory exists.
+
 ---
 
 ## Mental Model
 
-Think of the Factory as a central registry.
+Think of the Factory as the protocol's registry.
 
-Instead of everyone independently creating their own liquidity pool,
+Whenever someone wants a liquidity pool,
 
-everyone asks the Factory.
+they don't deploy a Pair directly.
+
+Instead,
+
+they ask the Factory.
 
 ```text
-Need ETH / USDC Pool
+Need ETH / USDC
 
 ↓
 
@@ -370,49 +470,49 @@ Already Exists?
 
 ├── Yes
 
-│     ↓
+│
 
-│     Use Existing Pair
+│   Reuse Existing Pair
 
 │
 
 └── No
 
-      ↓
+    ↓
 
-      Create Pair
+    Deploy Pair
 
-      ↓
+    ↓
 
-      Register Pair
+    Register Pair
 
-      ↓
+    ↓
 
-      Future Users Reuse It
+    Future Users Reuse It
 ```
 
 ---
 
 ## Final Realization
 
-At the beginning, it seemed reasonable to let anyone deploy Pair contracts.
+At the beginning,
 
-After thinking through the consequences, we discovered why that would be a poor design.
+allowing anyone to deploy Pair contracts sounded perfectly reasonable.
 
-The Factory exists to guarantee:
+After thinking through the consequences,
 
-* Exactly one Pair contract per unique token combination.
-* A single canonical liquidity pool.
-* Deep, shared liquidity.
-* Better price stability.
-* Lower slippage.
-* Easier discovery of existing pools.
+we realized why that design would fail.
 
-In other words,
+Without a Factory we would have:
 
-the Factory is not merely a deployment contract.
+* user confusion,
+* fragmented liquidity,
+* different prices,
+* larger slippage,
+* no canonical pool.
 
-It is the protocol's registry and the single source of truth for all Pair contracts.
+The Factory solves all of these problems by acting as the protocol's single source of truth.
 
-```
-```
+Its job is not merely to deploy contracts.
+
+Its job is to guarantee that every unique token combination maps to exactly one official Pair contract.
