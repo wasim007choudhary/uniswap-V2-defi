@@ -35,6 +35,57 @@ contract UV2Factory is IUV2Factory {
         return allPairs.length;
     }
 
+/**
+ * @notice Creates and registers a new liquidity Pair contract for two ERC-20 tokens.
+ * @dev This is the core function of the Factory and is responsible for deploying
+ *      new UV2Pair contracts using the CREATE2 opcode, ensuring deterministic
+ *      addresses and enforcing the invariant that only one Pair can exist for
+ *      any unique token combination.
+ *
+ *      Function flow:
+ *      1. Validates that the two token addresses are different.
+ *      2. Sorts the token addresses into a canonical order (token0 < token1).
+ *      3. Rejects the zero address.
+ *      4. Verifies that the Pair does not already exist.
+ *      5. Obtains the Pair creation (init) bytecode.
+ *      6. Generates a deterministic CREATE2 salt from the sorted tokens.
+ *      7. Deploys a new UV2Pair contract using CREATE2.
+ *      8. Initializes the newly deployed Pair with token0 and token1.
+ *      9. Registers the Pair in both lookup directions.
+ *      10. Stores the Pair in the global Pair registry.
+ *      11. Emits a PairCreated event.
+ *
+ *      The Pair is deployed using CREATE2, meaning its address is deterministic
+ *      and can be calculated ahead of time from:
+ *      - Factory address
+ *      - Salt
+ *      - Pair creation code hash
+ *
+ *      The Pair is initially deployed as a generic contract and is immediately
+ *      configured through `initialize(token0, token1)` to permanently associate
+ *      it with the supplied token pair.
+ *
+ * @param tokenA The first ERC-20 token address supplied by the caller.
+ * @param tokenB The second ERC-20 token address supplied by the caller.
+ *
+ * @return pair The address of the newly deployed and initialized UV2Pair contract.
+ *
+ * @custom:reverts UV2Factory__createPair__Identical_Address
+ *         Thrown when both supplied token addresses are identical.
+ *
+ * @custom:reverts UV2Factory__createPair_InvalidAddressZeroDetected
+ *         Thrown when either token address resolves to the zero address after sorting.
+ *
+ * @custom:reverts UV2Factory__createPair__PairAlreadyExists
+ *         Thrown when a Pair has already been created for the supplied token combination.
+ *
+ * @custom:emits PairCreated
+ *         Emitted after the Pair has been successfully deployed, initialized,
+ *         registered, and added to the Factory registry.
+
+ @custom:PeopleANDdevs go through  [notes/Factory/4.Functions] or event better (must)[notes/Factory] for complete dissection from scrath.GGs
+ */
+
     function createPair(address tokenA, address tokenB) external returns (address pair) {
         if (tokenA == tokenB) {
             revert UV2Factory__createPair__Identical_Address();
@@ -48,5 +99,18 @@ contract UV2Factory is IUV2Factory {
         }
         bytes memory bytecode = type(UV2Pair).creationCode;
         bytes32 salt = keccak256(abi.encodePacked(token0, token1));
+
+        assembly {
+            pair := create2(0, add(bytecode, 32), mload(bytecode), salt)
+        }
+
+        IUV2Pair(pair).initialize(token0, token1);
+
+        getPair[token0][token1] = pair;
+        getPair[token1][token0] = pair;
+
+        allPairs[].push(pair);
+
+        emit PairCreated(token0, token1, pair, allPairs.length)
     }
 }

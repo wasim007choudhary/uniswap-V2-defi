@@ -41,6 +41,7 @@ contract UV2Pair is IUV2Pair {
     error UV2Pair___swap__NoTokensDepositedInThePair();
     error UV2Pair___swap__BrokeTheUniswapAMMconstantVariant__K();
     error UV2Pair___update__BalanceExceedsUint112duringDowncasting();
+    error UV2Pair__initialize__OnlyFactoryCanCallInitialize_InvalidCaller();
 
     /*//////////////////////////////////////////////////////////////
                                 MODIFIER
@@ -121,6 +122,12 @@ contract UV2Pair is IUV2Pair {
      ///////////////////////////////////////////////////////*/
     constructor() {
         i_factory = msg.sender;
+    }
+
+    function initialize(address _token0, address _token1) external {
+        if (msg.sender != i_factory) {
+            revert UV2Pair__initialize__OnlyFactoryCanCallInitialize_InvalidCaller();
+        }
     }
     /*///////////////////////////////////////////////////////
                   PUBLIC FUNCTIONS
