@@ -14,9 +14,9 @@ contract UV2Pair is IUV2Pair {
     /*///////////////////////////////////////////////////////
                                   STATE VARIABLES
     ////////////////////////////////////////////////////////*/
-    uint112 reserve0; // will use only single sotrage slot as the below 2 cobined will give 256 hence 1 storage slot i.e. 128+128+64 = 256
-    uint112 reserve1; // ^^^
-    uint32 timeStampLastUpdate; //  ^^^
+    uint112 private reserve0; // will use only single sotrage slot as the below 2 cobined will give 256 hence 1 storage slot i.e. 128+128+64 = 256
+    uint112 private reserve1; // ^^^
+    uint32 private timeStampLastUpdate; //  ^^^
 
     bool private islocked; // false by defaukt
 
@@ -28,18 +28,6 @@ contract UV2Pair is IUV2Pair {
     uint256 public price0CumulativeLast;
     uint256 public price1CumulativeLast;
 
-    /*////////////////////////////////////////////////////////
-                       EVENTS
-    ////////////////////////////////////////////////////////*/
-    event Swap(
-        address indexed sender,
-        uint256 amount0out,
-        uint256 amount0in,
-        uint256 amount1out,
-        uint256 amount1in,
-        address indexed to
-    );
-    event Sync(uint112 reserve_0, uint112 reserve_1);
     /*////////////////////////////////////////////////////////
                        ERRORS
     ////////////////////////////////////////////////////////*/
@@ -192,7 +180,12 @@ contract UV2Pair is IUV2Pair {
      * @return _timeStampLastUpdate Timestamp of the most recent reserve update.
      */
 
-    function getReserves() public view returns (uint112 _reserve0, uint112 _reserve1, uint32 _timeStampLastUpdate) {
+    function getReserves()
+        public
+        view
+        override
+        returns (uint112 _reserve0, uint112 _reserve1, uint32 _timeStampLastUpdate)
+    {
         _reserve0 = reserve0;
         _reserve1 = reserve1;
         _timeStampLastUpdate = timeStampLastUpdate;
@@ -352,7 +345,7 @@ contract UV2Pair is IUV2Pair {
      * cumulative price tracking, oracle accounting, and TWAP preparation.
      */
 
-    function swap(uint256 amount0out, uint256 amount1out, address to, bytes calldata data) external {
+    function swap(uint256 amount0out, uint256 amount1out, address to, bytes calldata data) external override {
         if (amount0out <= 0 && amount1out <= 0) {
             revert UV2Pair___swap__InsufficientOutPutAmountInThePair();
         }
@@ -398,7 +391,7 @@ contract UV2Pair is IUV2Pair {
             }
         }
         _update(balance0, balance1, reserve_0, reserve_1);
-        emit Swap(msg.sender, amount0out, amount0in, amount1out, amount1in, to);
+        emit Swap(msg.sender, amount0in, amount1in, amount0out, amount1out, to);
     }
 
     //-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -431,5 +424,10 @@ contract UV2Pair is IUV2Pair {
      */
     function sync() external myReentryPrevention {
         _update(IERC20(token0).balanceOf(address(this)), IERC20(token1).balanceOf(address(this)), reserve0, reserve1);
+    }
+
+    // didnt want to name the function I_Factory in the interface in order to match so here you go;
+    function factory() external view override returns (address) {
+        return i_factory;
     }
 }
