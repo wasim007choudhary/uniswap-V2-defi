@@ -222,7 +222,7 @@ contract UV2Router02 is IUV2Router02 {
      *
      */
 
-    function swappingExactTokensForTokens(
+    function swapExactTokensForTokens(
         uint256 inputAmount,
         uint256 minAmountOut,
         address[] calldata path,

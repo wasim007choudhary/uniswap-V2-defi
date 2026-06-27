@@ -11,6 +11,7 @@ import {IUV2Pair} from "contracts/coreUV2/Interface/IUV2Pair.sol";
 import {UQ112xUQ112} from "contracts/coreUV2/library/UQ112x112.sol";
 
 contract UV2Pair is IUV2Pair {
+    //  using UQ112xUQ112 for uint224; will do it in normal library call wont do this shit!
     /*///////////////////////////////////////////////////////
                                   STATE VARIABLES
     ////////////////////////////////////////////////////////*/
@@ -277,8 +278,8 @@ contract UV2Pair is IUV2Pair {
             timeElasped = blockTimestamp - timeStampLastUpdate;
         }
         if (timeElasped > 0 && _reserve0 != 0 && _reserve1 != 0) {
-            price0CumulativeLast += uint256(UQ112xUQ112.encode(_reserve1).uqdiv(_reserve0)) * timeElasped;
-            price1CumulativeLast += uint256(UQ112xUQ112.encode(_reserve0).uqdiv(_reserve1)) * timeElasped;
+            price0CumulativeLast += uint256(UQ112xUQ112.uqdiv(UQ112xUQ112.encode(_reserve1), _reserve0)) * timeElasped;
+            price1CumulativeLast += uint256(UQ112xUQ112.uqdiv(UQ112xUQ112.encode(_reserve0), _reserve1)) * timeElasped;
         }
         _reserve0 = uint112(_balance0);
         _reserve1 = uint112(_balance1);
@@ -349,7 +350,7 @@ contract UV2Pair is IUV2Pair {
         if (amount0out <= 0 && amount1out <= 0) {
             revert UV2Pair___swap__InsufficientOutPutAmountInThePair();
         }
-        (uint128 reserve_0, uint128 reserve_1,) = getReserves();
+        (uint112 reserve_0, uint112 reserve_1,) = getReserves();
         if (amount0out >= reserve0 || amount1out >= reserve1) {
             revert UV2Pair___swap__InsufficientlIQUIDITYasInsuffientOutPutAmountInThePair();
         }
