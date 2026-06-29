@@ -202,6 +202,7 @@ This is how tokens move through the route.
 ---
 
 ## data
+>Please Visit and read **[ notes/Core/FlashSWAPandAtomicTransaction ]** hightly recommended befor going any further!
 
 Used for flash swaps.
 
@@ -598,6 +599,7 @@ Ethereum transactions are atomic.
 ---
 
 # Step 7
+>>Please Visit and read **[ notes/Core/FlashSWAPandAtomicTransaction ]** to fully understand flashswaps adn aTOMIC TRANSACTIONS
 
 ```solidity
 if (data.length > 0)
