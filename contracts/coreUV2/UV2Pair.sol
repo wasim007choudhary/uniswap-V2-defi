@@ -128,6 +128,8 @@ contract UV2Pair is IUV2Pair {
         if (msg.sender != i_factory) {
             revert UV2Pair__initialize__OnlyFactoryCanCallInitialize_InvalidCaller();
         }
+        token0 = _token0;
+        token1 = _token1;
     }
     /*///////////////////////////////////////////////////////
                   PUBLIC FUNCTIONS

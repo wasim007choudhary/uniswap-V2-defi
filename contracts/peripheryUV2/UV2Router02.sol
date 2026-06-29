@@ -17,7 +17,8 @@ contract UV2Router02 is IUV2Router02 {
                                 ERRORS
     //////////////////////////////////////////////////////////////*/
     error UV2Router02___ExecutionTimeExceeded();
-    error UV2Router02___swappingExactTokensForTokens__InsufficientOutputAmount();
+    error UV2Router02___swappingExactTokensForTokens__MinimumOutLimitputNotMet();
+    error UV2Router___swapTokensForExactTokens__MaximumInputAmountLimitExceeded();
 
     /*//////////////////////////////////////////////////////////////
                                 STATE VARIABLES
@@ -191,35 +192,64 @@ contract UV2Router02 is IUV2Router02 {
                                External Functions
     //////////////////////////////////////////////////////////////*/
     /**
-     *   @notice Swaps an exact amount of input tokens for as many output tokens as possible.
-     *  @dev The swap route is defined by `path`.
-     *       First calculates expected output amounts for every hop in the route.
-     *       Then verifies the final output satisfies the user's minimum requirement.
-     *     Transfers the input tokens from the caller to the first liquidity pair.
+     * @notice Swaps an exact amount of input tokens for as many output tokens as possible.
+     * @dev The swap route is defined by `path`.
+     *      First calculates the expected output amounts for every hop in the route.
+     *      Then verifies the final output satisfies the user's minimum acceptable amount.
+     *      Transfers the input tokens from the caller to the first liquidity pair.
      *      Finally executes all swaps along the provided path.
+     *
      * @param inputAmount Exact amount of input tokens the user wants to spend.
-     *  @param minAmountOut Minimum acceptable amount of the final output token.
-     *       Reverts if the calculated output is lower.
      *
-     *  Example: lets say user expects atleas 950 weth for 1000 USDC, and if output amount is 900 or >950 then revrets
+     * @param minAmountOut Minimum amount of output tokens the user is willing to receive.
+     *        Think of it as the user's minimum acceptable return.
+     *        Reverts if the final output amount is less than this value.
      *
-     * @param path Ordered list of token addresses describing the swap route. It is done in the frontend in the Uniswap where the user selects what to swap!
-     *        Example: [USDC, WETH, LINK].
-     *  @param to Recipient of the final output tokens.
-     *  @param deadline Transaction expiry timestamp.
-     *         Reverts if the transaction is executed after this time. It is a safety bottleneck for better price value
-     *  @return amounts Output amounts calculated for each token in the path. If multi swap tjhey it will give the outputs for each path along with the final path
-     *          Example:
-     *          path    = [USDC, WETH, LINK]
-     *          amounts = [1000, 0.4e18, 950e18]
+     *        Example:
+     *        User swaps exactly 1000 USDC.
+     *        minAmountOut = 950 LINK.
+     *        If the final output is 980 LINK, the swap succeeds.
+     *        If the final output is 900 LINK, the transaction reverts.
      *
-     *             note and we added "s" in amounts beacuse it is an array and have more than one output so there you go!
+     * @param path Ordered list of token addresses describing the swap route.
+     *        It is created by the frontend (e.g., Uniswap Interface) based on the tokens selected by the user.
      *
+     *        Example:
+     *        [USDC, WETH, LINK]
      *
+     * @param to Recipient of the final output tokens.
      *
-     *  NOTE We will dig deep on getAmountsOut() function in the library and it is one of the important backdors for this function
-     *  But for here just get it like it gives the output amounts along with each path it goes through just like the above example!
+     * @param deadline Transaction expiry timestamp.
+     *        Reverts if the transaction is executed after this time.
+     *        This protects users from executing swaps using stale prices.
      *
+     * @return amounts Array containing the calculated output amounts for every hop in the swap path.
+     *
+     *        Example:
+     *        path    = [USDC, WETH, LINK]
+     *        amounts = [1000e6, 0.4e18, 950e18]
+     *
+     *        Here:
+     *        - 1000 USDC is provided as the exact input.
+     *        - It swaps into 0.4 WETH.
+     *        - Finally producing 950 LINK.
+     *
+     *        Note: `amounts` is plural because it is an array containing the token amount for
+     *        every hop in the swap path, not just the final output amount.
+     *
+     * @custom:reverts UV2Router___ExecutionDeadlineExceeded
+     *         If the transaction is executed after `deadline`.
+     *
+     * @custom:reverts UV2Router02___swappingExactTokensForTokens__MinimumOutLimitputNotMet
+     *         If the final output amount is less than `minAmountOut`.
+     *
+     *--------------------------------------------------------------------------------------------
+     * @custom:note
+     * Before reading this function, it is recommended to first understand the NatSpecs of
+     * `getAmountOut()`, `getAmountsOut()`, `pairFor()`, `getReserves()`, and their related helper
+     * functions as well, as this function relies on them to calculate the output amounts. And
+     *  When you hit the line `_swap ` do that as well!
+     *--------------------------------------------------------------------------------------------
      */
 
     function swapExactTokensForTokens(
@@ -231,15 +261,93 @@ contract UV2Router02 is IUV2Router02 {
     ) external virtual override ensureExecutionTime(deadline) returns (uint256[] memory amounts) {
         amounts = UV2Library.getAmountsOut(i_factory, inputAmount, path);
         if (amounts[amounts.length - 1] < minAmountOut) {
-            revert UV2Router02___swappingExactTokensForTokens__InsufficientOutputAmount();
+            revert UV2Router02___swappingExactTokensForTokens__MinimumOutLimitputNotMet();
         }
         MyTransferHelper.safeTrasnferFrom(
             path[0], msg.sender, UV2Library.pairFor(i_factory, path[0], path[1]), amounts[0]
         );
-        // dissection _swap
+        ///@custom:see _swap see the function natspec and also notes/Periphery/Library/routert/_swap.md to understand what this below function does
+        _swap(path, to, amounts);
     }
 
-    //function swappingTokensForExactTokens() external {}
+    /**
+     * @notice Swaps the minimum required amount of input tokens for an exact amount of output tokens.
+     * @dev The swap route is defined by `path`.
+     *      First calculates the minimum input amounts required for every hop in the route.
+     *      Then verifies the required input does not exceed the user's maximum spending limit.
+     *      Transfers only the required input tokens from the caller to the first liquidity pair.
+     *      Finally executes all swaps along the provided path.
+     *
+     * @param maxAmountIn Maximum amount of input tokens the user is willing to spend.
+     *    Think of it as the user's spending limit.
+     *    If more input tokens are required than this limit, the transaction reverts.
+     *
+     *        Example:
+     *        User wants exactly 950 LINK.
+     *        maxAmountIn = 1000 USDC.
+     *        If the router calculates that 980 USDC is required, the swap succeeds.
+     *        If it calculates that 1020 USDC is required, the transaction reverts.
+     *
+     * @param outputAmount Exact amount of the final output token the user wants to receive.
+     *        Unlike `swapExactTokensForTokens`, here the output is fixed and the input is calculated.
+     *
+     * @param path Ordered list of token addresses describing the swap route.
+     *        It is created by the frontend (e.g., Uniswap Interface) based on the tokens selected by the user.
+     *
+     *        Example:
+     *        [USDC, WETH, LINK]
+     *
+     * @param to Recipient of the final output tokens.
+     *
+     * @param deadline Transaction expiry timestamp.
+     *        Reverts if the transaction is executed after this time.
+     *        This protects users from executing swaps using stale prices.
+     *
+     * @return amounts Array containing the calculated token amounts required for every hop in the swap path.
+     *
+     *        Example:
+     *        path    = [USDC, WETH, LINK]
+     *        amounts = [1000e6, 0.4e18, 950e18]
+     *
+     *        Here:
+     *        - 1000 USDC is required as the input.
+     *        - It swaps into 0.4 WETH.
+     *        - Finally producing exactly 950 LINK.
+     *
+     *        Note: `amounts` is plural because it is an array containing the token amount for
+     *        every hop in the swap path, not just the final output amount.
+     *
+     * @custom:reverts UV2Router___ExecutionDeadlineExceeded
+     *         If the transaction is executed after `deadline`.
+     *
+     * @custom:reverts UV2Router___swapTokensForExactTokens__MaximumInputAmountLimitExceeded
+     *         If the required input amount exceeds `maxAmountIn`.
+     *--------------------------------------------------------------------------------------------
+     * @custom:note
+     * Before reading this function, it is recommended to first understand the NatSpecs of
+     * `getAmountIn()`, `getAmountsIn()`, `pairFor()`, `getReserves()`, and their related helper
+     * functions as well, as this function relies on them to calculate the required input amounts. And
+     * When you hit the line _swap do that as well!
+     *--------------------------------------------------------------------------------------------
+     */
+
+    function swapTokensForExactTokens(
+        uint256 maxAmountIn,
+        uint256 outputAmount,
+        address[] calldata path,
+        address to,
+        uint256 deadline
+    ) external virtual override ensureExecutionTime(deadline) returns (uint256[] memory amounts) {
+        amounts = UV2Library.getAmountsIn(i_factory, outputAmount, path);
+        if (amounts[0] > maxAmountIn) {
+            revert UV2Router___swapTokensForExactTokens__MaximumInputAmountLimitExceeded();
+        }
+        MyTransferHelper.safeTransferFrom(
+            path[0], msg.sender, UV2Library.pairFor(i_factory, path[0], path[1]), amounts[0]
+        );
+        ///@custom:see _swap see the function natspec and also notes/Periphery/Library/routert/_swap.md to understand what this below function does
+        _swap(path, to, amounts);
+    }
 
     /*/////////////////////////////////////////////////////////////////////////////////////
                                UV2LIBRARY FUNCTIONS
