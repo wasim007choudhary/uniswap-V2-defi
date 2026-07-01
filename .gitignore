@@ -12,4 +12,13 @@ docs/
 
 # Dotenv file
 .env
+
+
+# IDE
+.vscode/
+
+# OS files
 .DS_Store
+
+# Foundry lock
+foundry.lock
