@@ -360,7 +360,28 @@ contract UV2Router02 is IUV2Router02 {
     /*-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/
-    function _swapSupportingFeeOnTransferTokens(address[] calldata path, address _to) internal {}
+    function _swapSupportingFeeOnTransferTokens(address[] calldata path, address _to) internal {
+        for (uint256 i = 0; i < path.length - 1; i++) {
+            (address input, address output) = (path[i], path[i + 1]);
+            (address token0,) = UV2Library.sortTokens(input, output);
+            IUV2Pair pair = IUV2Pair(UV2Library.pairFor(factory, input, output));
+
+            uint256 amountIn;
+            uint256 amountOut;
+
+            {
+                (uint256 reserve0, uint256 reserve1) = pair.getReserves();
+                (uint256 reserveIn, uint256 reserveOut) = input == token0 ? (reserve0, reserve1) : (reserve1, reserve0);
+
+                amountIn = IERC20(input).balanceOf(address(pair)) - reserveIn;
+                amountOut = UV2Library.getAmountOut(amountIn, reserveIn, reserveOut);
+            }
+            (uint256 amount0out, uint256 amount1out) =
+                input == token0 ? (uint256(0), amountOut) : (amountOut, uint256(0));
+            address to = i < path.length - 2 ? UV2Library.pairFor(factory, output, path[i + 2]); _to;
+            pair.swap(amount0out, amount1out, to, new bytes(0));    
+        }
+    }
 
     function swapExactTokensForTokensSupportingFeeOnTransferTokens(
         uint256 inputAmount,
