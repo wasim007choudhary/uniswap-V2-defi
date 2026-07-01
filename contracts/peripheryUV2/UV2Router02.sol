@@ -361,6 +361,79 @@ contract UV2Router02 is IUV2Router02 {
     /*-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/
+   /**
+ * @notice Routes a swap through one or more Uniswap V2 Pairs while supporting
+ *         fee-on-transfer (tax/burn/reflection) tokens.
+ *
+ * @dev This function is the Router's execution engine for fee-on-transfer tokens.
+ *
+ * Before entering `_swapSupportingFeeOnTransferTokens()`:
+ * * The public function has already transferred the user's input tokens
+ *   to the first Pair.
+ * * The first Pair already holds the input tokens
+ *   (after any transfer fee deducted by the token contract).
+ * * The Pair's stored reserves have NOT yet been updated.
+ *
+ * Unlike the normal `_swap()`, this function does NOT trust that the Pair
+ * received exactly the transferred input amount.
+ *
+ * Instead, for every hop it:
+ * * Reads the Pair's reserves.
+ * * Measures the Pair's actual received input amount.
+ * * Calculates the correct output amount using the measured input.
+ * * Translates Router language (input/output)
+ *   into Pair language (token0/token1).
+ * * Determines where the current output should be sent.
+ * * Invokes `Pair.swap()` for each hop.
+ *
+ * For multi-hop swaps, intermediate outputs are sent directly from one Pair
+ * to the next Pair without passing through the Router.
+ *
+ * Mental Model:
+ *
+ * balanceOf(pair) - reserveInput = Measure Actual Input
+ 
+ * getAmountOut() = Pricing Engine
+ * 
+ * Pair.swap() = Execution Engine
+ 
+ * Router measures.
+ * Router calculates.
+ * Pair enforces.
+ *
+ * @param path Ordered sequence of token addresses describing
+ *        the swap route.
+ *
+ *        Example:
+ *        [USDC, WETH, LINK]
+ *
+ * @param to Final recipient of the last output token.
+ *
+ * @custom:routing
+ * If another hop exists:
+ *
+ * Current Pair ==> Next Pair
+ *
+ * Otherwise:
+ *
+ * Current Pair ==> Final Recipient
+ *
+ * @custom:note
+ * Unlike `_swap()`, this function cannot rely on pre-calculated amounts
+ * because fee-on-transfer tokens may deduct tokens during transfer.
+ *
+ * Therefore, each Pair's actual received input amount is measured using:
+ *
+ * ```
+ * IERC20(input).balanceOf(address(pair)) - reserveInput
+ * ```
+ *
+ * before calculating the output amount for that hop.
+ *
+ * @custom:see
+ * For a complete line-by-line breakdown see:
+ * `notes/Periphery/router/_swapSupportingFeeOnTransferTokens.md`
+ */
     function _swapSupportingFeeOnTransferTokens(address[] calldata path, address to) internal {
         for (uint256 i = 0; i < path.length - 1; i++) {
             (address input, address output) = (path[i], path[i + 1]);
@@ -439,8 +512,6 @@ contract UV2Router02 is IUV2Router02 {
  * When execution reaches `_swapSupportingFeeOnTransferTokens()`, read its NatSpecs as well,
  * since that function contains the core swap logic for fee-on-transfer tokens.
  *--------------------------------------------------------------------------------------------------
-
-
  */
     function swapExactTokensForTokensSupportingFeeOnTransferTokens(
         uint256 inputAmount,
