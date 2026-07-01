@@ -9,7 +9,7 @@ import {IUV2Router02} from "contracts/peripheryUV2/Interfaces/IUV2Router02.sol";
 import {IUV2Pair} from "contracts/coreUV2/Interface/IUV2Pair.sol";
 import {MyTransferHelper} from "contracts/peripheryUV2/library/WTransferHelper.sol";
 
-import {IER20} from "contracts/peripheryUV2/Interfaces/IERC20.sol";
+import {IERC20} from "contracts/peripheryUV2/Interfaces/IERC20.sol";
 
 /*//////////////////////////////////////////////////////////////
                         |  CONTRACT
@@ -269,7 +269,7 @@ contract UV2Router02 is IUV2Router02 {
         if (amounts[amounts.length - 1] < minAmountOut) {
             revert UV2Router02___swappingExactTokensForTokens__MinimumOutLimitputNotMet();
         }
-        MyTransferHelper.safeTrasnferFrom(
+        MyTransferHelper.safeTransferFrom(
             path[0], msg.sender, UV2Library.pairFor(i_factory, path[0], path[1]), amounts[0]
         );
         ///@custom:see _swap see the function natspec and also notes/Periphery/Library/routert/_swap.md to understand what this below function does
@@ -361,90 +361,90 @@ contract UV2Router02 is IUV2Router02 {
     /*-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/
-   /**
- * @notice Routes a swap through one or more Uniswap V2 Pairs while supporting
- *         fee-on-transfer (tax/burn/reflection) tokens.
- *
- * @dev This function is the Router's execution engine for fee-on-transfer tokens.
- *
- * Before entering `_swapSupportingFeeOnTransferTokens()`:
- * * The public function has already transferred the user's input tokens
- *   to the first Pair.
- * * The first Pair already holds the input tokens
- *   (after any transfer fee deducted by the token contract).
- * * The Pair's stored reserves have NOT yet been updated.
- *
- * Unlike the normal `_swap()`, this function does NOT trust that the Pair
- * received exactly the transferred input amount.
- *
- * Instead, for every hop it:
- * * Reads the Pair's reserves.
- * * Measures the Pair's actual received input amount.
- * * Calculates the correct output amount using the measured input.
- * * Translates Router language (input/output)
- *   into Pair language (token0/token1).
- * * Determines where the current output should be sent.
- * * Invokes `Pair.swap()` for each hop.
- *
- * For multi-hop swaps, intermediate outputs are sent directly from one Pair
- * to the next Pair without passing through the Router.
- *
- * Mental Model:
- *
- * balanceOf(pair) - reserveInput = Measure Actual Input
- 
- * getAmountOut() = Pricing Engine
- * 
- * Pair.swap() = Execution Engine
- 
- * Router measures.
- * Router calculates.
- * Pair enforces.
- *
- * @param path Ordered sequence of token addresses describing
- *        the swap route.
- *
- *        Example:
- *        [USDC, WETH, LINK]
- *
- * @param to Final recipient of the last output token.
- *
- * @custom:routing
- * If another hop exists:
- *
- * Current Pair ==> Next Pair
- *
- * Otherwise:
- *
- * Current Pair ==> Final Recipient
- *
- * @custom:note
- * Unlike `_swap()`, this function cannot rely on pre-calculated amounts
- * because fee-on-transfer tokens may deduct tokens during transfer.
- *
- * Therefore, each Pair's actual received input amount is measured using:
- *
- * ```
- * IERC20(input).balanceOf(address(pair)) - reserveInput
- * ```
- *
- * before calculating the output amount for that hop.
- *
- * @custom:see
- * For a complete line-by-line breakdown see:
- * `notes/Periphery/router/_swapSupportingFeeOnTransferTokens.md`
- */
+    /**
+     * @notice Routes a swap through one or more Uniswap V2 Pairs while supporting
+     *         fee-on-transfer (tax/burn/reflection) tokens.
+     *
+     * @dev This function is the Router's execution engine for fee-on-transfer tokens.
+     *
+     * Before entering `_swapSupportingFeeOnTransferTokens()`:
+     * * The public function has already transferred the user's input tokens
+     *   to the first Pair.
+     * * The first Pair already holds the input tokens
+     *   (after any transfer fee deducted by the token contract).
+     * * The Pair's stored reserves have NOT yet been updated.
+     *
+     * Unlike the normal `_swap()`, this function does NOT trust that the Pair
+     * received exactly the transferred input amount.
+     *
+     * Instead, for every hop it:
+     * * Reads the Pair's reserves.
+     * * Measures the Pair's actual received input amount.
+     * * Calculates the correct output amount using the measured input.
+     * * Translates Router language (input/output)
+     *   into Pair language (token0/token1).
+     * * Determines where the current output should be sent.
+     * * Invokes `Pair.swap()` for each hop.
+     *
+     * For multi-hop swaps, intermediate outputs are sent directly from one Pair
+     * to the next Pair without passing through the Router.
+     *
+     * Mental Model:
+     *
+     * balanceOf(pair) - reserveInput = Measure Actual Input
+     *
+     * getAmountOut() = Pricing Engine
+     *
+     * Pair.swap() = Execution Engine
+     *
+     * Router measures.
+     * Router calculates.
+     * Pair enforces.
+     *
+     * @param path Ordered sequence of token addresses describing
+     *        the swap route.
+     *
+     *        Example:
+     *        [USDC, WETH, LINK]
+     *
+     * @param to Final recipient of the last output token.
+     *
+     * @custom:routing
+     * If another hop exists:
+     *
+     * Current Pair ==> Next Pair
+     *
+     * Otherwise:
+     *
+     * Current Pair ==> Final Recipient
+     *
+     * @custom:note
+     * Unlike `_swap()`, this function cannot rely on pre-calculated amounts
+     * because fee-on-transfer tokens may deduct tokens during transfer.
+     *
+     * Therefore, each Pair's actual received input amount is measured using:
+     *
+     * ```
+     * IERC20(input).balanceOf(address(pair)) - reserveInput
+     * ```
+     *
+     * before calculating the output amount for that hop.
+     *
+     * @custom:see
+     * For a complete line-by-line breakdown see:
+     * `notes/Periphery/router/_swapSupportingFeeOnTransferTokens.md`
+     */
     function _swapSupportingFeeOnTransferTokens(address[] calldata path, address to) internal {
         for (uint256 i = 0; i < path.length - 1; i++) {
             (address input, address output) = (path[i], path[i + 1]);
             (address token0,) = UV2Library.sortTokens(input, output);
-            IUV2Pair pair = IUV2Pair(UV2Library.pairFor(factory, input, output));
+            IUV2Pair pair = IUV2Pair(UV2Library.pairFor(i_factory, input, output));
 
             uint256 amountIn;
             uint256 amountOut;
 
             {
-                (uint256 reserve0, uint256 reserve1) = pair.getReserves();
+                (uint256 reserve0, uint256 reserve1,) = pair.getReserves();
                 (uint256 reserveIn, uint256 reserveOut) = input == token0 ? (reserve0, reserve1) : (reserve1, reserve0);
 
                 amountIn = IERC20(input).balanceOf(address(pair)) - reserveIn;
@@ -452,8 +452,8 @@ contract UV2Router02 is IUV2Router02 {
             }
             (uint256 amount0out, uint256 amount1out) =
                 input == token0 ? (uint256(0), amountOut) : (amountOut, uint256(0));
-            address _to = i < path.length - 2 ? UV2Library.pairFor(factory, output, path[i + 2]); to;
-            pair.swap(amount0out, amount1out, _to, new bytes(0));    
+            address _to = i < path.length - 2 ? UV2Library.pairFor(i_factory, output, path[i + 2]) : to;
+            pair.swap(amount0out, amount1out, _to, new bytes(0));
         }
     }
 
@@ -461,71 +461,66 @@ contract UV2Router02 is IUV2Router02 {
     -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/
     /**
- * @notice Swaps an exact amount of input tokens for as many output tokens as possible while supporting
- *         fee-on-transfer (tax/burn/reflection) tokens.
- *
- * @dev Unlike `swapExactTokensForTokens`, this function cannot pre-calculate the output amounts because
- *      fee-on-transfer tokens may deduct a portion of the transferred tokens before they reach the Pair.
- *
- *      The function first transfers the exact input tokens from the caller directly to the first
- *      liquidity Pair. It then records the recipient's current balance of the final output token,
- *      executes all swaps while measuring the actual input received by each Pair, and finally verifies
- *      that the recipient received at least the minimum output amount specified by the user.
- *
- * @param inputAmount Exact amount of input tokens the user wants to spend.
- *        This amount is transferred from the caller to the first liquidity Pair.
- *
- *        Note:
- *        If the input token charges a transfer fee, the Pair may receive fewer tokens than
- *        `inputAmount`.
- *
- * @param minOutputAmount Minimum acceptable amount of the final output token the recipient must receive.
- *        If the actual received amount is lower than this value, the entire transaction reverts.
- *
- * @param path Ordered list of token addresses describing the swap route.
- *        It is created by the frontend (e.g., Uniswap Interface) based on the tokens selected by the user.
- *
- *        Example:
- *        [USDC, WETH, LINK]
- *
- * @param to Recipient of the final output tokens.
- *
- * @param deadline Transaction expiry timestamp.
- *        Reverts if the transaction is executed after this time.
- *        This protects users from executing swaps using stale prices.
- *
- * @return amounts Reserved for interface compatibility.
- *         Since the output amounts cannot be reliably pre-computed for fee-on-transfer tokens,
- *         this function verifies the recipient's final balance instead of returning calculated
- *         amounts.
- *
- * @custom:reverts UV2Router___ExecutionDeadlineExceeded
- *         If the transaction is executed after the `deadline`.
- *
- * @custom:reverts UV2Router___swapExactTokensForTokensSupportingFeeOnTransferTokens___OutputAmountBelowUserMinimumLimit
- *         If the recipient receives fewer output tokens than `minOutputAmount`.
- *
- *--------------------------------------------------------------------------------------------------
- *
-  @custom:note visit notes/Periphery/Library/routert/swapExactTokensForTokensSupportingFeeOnTransferTokens.md for complete dissection!
- * 
- * When execution reaches `_swapSupportingFeeOnTransferTokens()`, read its NatSpecs as well,
- * since that function contains the core swap logic for fee-on-transfer tokens.
- *--------------------------------------------------------------------------------------------------
- */
+     * @notice Swaps an exact amount of input tokens for as many output tokens as possible while supporting
+     *         fee-on-transfer (tax/burn/reflection) tokens.
+     *
+     * @dev Unlike `swapExactTokensForTokens`, this function cannot pre-calculate the output amounts because
+     *      fee-on-transfer tokens may deduct a portion of the transferred tokens before they reach the Pair.
+     *
+     *      The function first transfers the exact input tokens from the caller directly to the first
+     *      liquidity Pair. It then records the recipient's current balance of the final output token,
+     *      executes all swaps while measuring the actual input received by each Pair, and finally verifies
+     *      that the recipient received at least the minimum output amount specified by the user.
+     *
+     * @param inputAmount Exact amount of input tokens the user wants to spend.
+     *        This amount is transferred from the caller to the first liquidity Pair.
+     *
+     *        Note:
+     *        If the input token charges a transfer fee, the Pair may receive fewer tokens than
+     *        `inputAmount`.
+     *
+     * @param minOutputAmount Minimum acceptable amount of the final output token the recipient must receive.
+     *        If the actual received amount is lower than this value, the entire transaction reverts.
+     *
+     * @param path Ordered list of token addresses describing the swap route.
+     *        It is created by the frontend (e.g., Uniswap Interface) based on the tokens selected by the user.
+     *
+     *        Example:
+     *        [USDC, WETH, LINK]
+     *
+     * @param to Recipient of the final output tokens.
+     *
+     * @param deadline Transaction expiry timestamp.
+     *        Reverts if the transaction is executed after this time.
+     *        This protects users from executing swaps using stale prices.
+     *
+     * @custom:reverts UV2Router___ExecutionDeadlineExceeded
+     *         If the transaction is executed after the `deadline`.
+     *
+     * @custom:reverts UV2Router___swapExactTokensForTokensSupportingFeeOnTransferTokens___OutputAmountBelowUserMinimumLimit
+     *         If the recipient receives fewer output tokens than `minOutputAmount`.
+     *
+     *--------------------------------------------------------------------------------------------------
+     *
+     * @custom:note visit notes/Periphery/Library/routert/swapExactTokensForTokensSupportingFeeOnTransferTokens.md for complete dissection!
+     *
+     * When execution reaches `_swapSupportingFeeOnTransferTokens()`, read its NatSpecs as well,
+     * since that function contains the core swap logic for fee-on-transfer tokens.
+     *--------------------------------------------------------------------------------------------------
+     */
     function swapExactTokensForTokensSupportingFeeOnTransferTokens(
         uint256 inputAmount,
         uint256 minOutputAmount,
         address[] calldata path,
         address to,
         uint256 deadline
-    ) external virtual override ensureExecutionTime(deadline) returns (uint256[] memory amounts) {
+    ) external virtual override ensureExecutionTime(deadline) {
         MyTransferHelper.safeTransferFrom(
-            path[0], msg.sender, UV2Library.pairFor(factory, path[0], path[1]), inputAmount
+            path[0], msg.sender, UV2Library.pairFor(i_factory, path[0], path[1]), inputAmount
         );
         uint256 balanceBefore = IERC20(path[path.length - 1]).balanceOf(to);
         _swapSupportingFeeOnTransferTokens(path, to);
-        if(IERC20(path[path.length -1]).balanceOf(to) - balanceBefore < minOutputAmount) {
+        if (IERC20(path[path.length - 1]).balanceOf(to) - balanceBefore < minOutputAmount) {
             revert UV2Router___swapExactTokensForTokensSupportingFeeOnTransferTokens___OutputAmountBelowUserMinimumLimit();
         }
     }

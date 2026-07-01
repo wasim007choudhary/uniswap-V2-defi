@@ -167,7 +167,7 @@ library MyTransferHelper {
     /**
      *  Read the safeApprove natspec same logic here too, wont repeart myself just , its trasnferFrom this time
      */
-    function safeTrasnferFrom(address token, address from, address to, uint256 value) internal {
+    function safeTransferFrom(address token, address from, address to, uint256 value) internal {
         //bytes4(keccak256(bytes('transferFrom(address,address,uint256)'))) = 0x23b872dd
         (bool success, bytes memory data) = token.call(abi.encodeWithSelector(0x23b872dd, from, to, value));
         if (!success) {
