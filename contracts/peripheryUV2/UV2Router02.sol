@@ -384,6 +384,64 @@ contract UV2Router02 is IUV2Router02 {
         }
     }
 
+    /*-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+    -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+    ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/
+    /**
+ * @notice Swaps an exact amount of input tokens for as many output tokens as possible while supporting
+ *         fee-on-transfer (tax/burn/reflection) tokens.
+ *
+ * @dev Unlike `swapExactTokensForTokens`, this function cannot pre-calculate the output amounts because
+ *      fee-on-transfer tokens may deduct a portion of the transferred tokens before they reach the Pair.
+ *
+ *      The function first transfers the exact input tokens from the caller directly to the first
+ *      liquidity Pair. It then records the recipient's current balance of the final output token,
+ *      executes all swaps while measuring the actual input received by each Pair, and finally verifies
+ *      that the recipient received at least the minimum output amount specified by the user.
+ *
+ * @param inputAmount Exact amount of input tokens the user wants to spend.
+ *        This amount is transferred from the caller to the first liquidity Pair.
+ *
+ *        Note:
+ *        If the input token charges a transfer fee, the Pair may receive fewer tokens than
+ *        `inputAmount`.
+ *
+ * @param minOutputAmount Minimum acceptable amount of the final output token the recipient must receive.
+ *        If the actual received amount is lower than this value, the entire transaction reverts.
+ *
+ * @param path Ordered list of token addresses describing the swap route.
+ *        It is created by the frontend (e.g., Uniswap Interface) based on the tokens selected by the user.
+ *
+ *        Example:
+ *        [USDC, WETH, LINK]
+ *
+ * @param to Recipient of the final output tokens.
+ *
+ * @param deadline Transaction expiry timestamp.
+ *        Reverts if the transaction is executed after this time.
+ *        This protects users from executing swaps using stale prices.
+ *
+ * @return amounts Reserved for interface compatibility.
+ *         Since the output amounts cannot be reliably pre-computed for fee-on-transfer tokens,
+ *         this function verifies the recipient's final balance instead of returning calculated
+ *         amounts.
+ *
+ * @custom:reverts UV2Router___ExecutionDeadlineExceeded
+ *         If the transaction is executed after the `deadline`.
+ *
+ * @custom:reverts UV2Router___swapExactTokensForTokensSupportingFeeOnTransferTokens___OutputAmountBelowUserMinimumLimit
+ *         If the recipient receives fewer output tokens than `minOutputAmount`.
+ *
+ *--------------------------------------------------------------------------------------------------
+ *
+  @custom:note visit notes/Periphery/Library/routert/swapExactTokensForTokensSupportingFeeOnTransferTokens.md for complete dissection!
+ * 
+ * When execution reaches `_swapSupportingFeeOnTransferTokens()`, read its NatSpecs as well,
+ * since that function contains the core swap logic for fee-on-transfer tokens.
+ *--------------------------------------------------------------------------------------------------
+
+
+ */
     function swapExactTokensForTokensSupportingFeeOnTransferTokens(
         uint256 inputAmount,
         uint256 minOutputAmount,
@@ -392,7 +450,7 @@ contract UV2Router02 is IUV2Router02 {
         uint256 deadline
     ) external virtual override ensureExecutionTime(deadline) returns (uint256[] memory amounts) {
         MyTransferHelper.safeTransferFrom(
-            path[0], msg.sender, UV2Library.pairFor(factory, path[0], path[1], inputAmount)
+            path[0], msg.sender, UV2Library.pairFor(factory, path[0], path[1]), inputAmount
         );
         uint256 balanceBefore = IERC20(path[path.length - 1]).balanceOf(to);
         _swapSupportingFeeOnTransferTokens(path, to);
