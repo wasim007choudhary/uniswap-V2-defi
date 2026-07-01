@@ -172,5 +172,6 @@ contract UV2Factory is IUV2Factory {
         if (msg.sender != feeToAddressSetter) {
             revert UV2Factory__SetFeeToAddressSetter__AddressNotAuthorizedToSet();
         }
+        feeToAddressSetter = _feeToAddressSetter;
     }
 }
