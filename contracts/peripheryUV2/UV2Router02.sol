@@ -394,6 +394,7 @@ contract UV2Router02 is IUV2Router02 {
             path[0], msg.sender, UV2Library.pairFor(factory, path[0], path[1], inputAmount)
         );
         uint256 balanceBefore = IERC20(path[path.length - 1]).balanceOf(to);
+        _swapSupportingFeeOnTransferTokens(path, to);
     }
 
     /*/////////////////////////////////////////////////////////////////////////////////////
