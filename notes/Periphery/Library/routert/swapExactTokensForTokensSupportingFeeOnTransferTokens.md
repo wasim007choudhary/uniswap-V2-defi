@@ -459,6 +459,399 @@ Inside the internal helper, the Router will:
 
 Once the helper finishes, the EVM resumes execution **right after this line**, continuing with the remaining statements of this function.
 
-> **See:** `notes/router/_swapSupportingFeeOnTransferTokens.md`
+> **See:** `notes/router/internal__swapSupportingFeeOnTransferTokens.md`
 
-The remaining lines of this function will be dissected after completing the internal helper function.
+---
+# Final Safety Check
+
+```solidity
+require(
+    IERC20(path[path.length - 1]).balanceOf(to)
+        .sub(balanceBefore)
+        >= amountOutMin,
+    "UniswapV2Router: INSUFFICIENT_OUTPUT_AMOUNT"
+);
+```
+
+## Purpose
+
+Verifies that the recipient actually received **at least** `amountOutMin` output tokens.
+
+Unlike the normal Router, this Router **cannot know the final output amount before the swap begins**, because fee-on-transfer tokens may deduct tokens during transfers.
+
+Instead of trusting calculations, it measures the recipient's final balance after all swaps finish.
+
+---
+
+# Step 1 — Read Recipient's Current Balance
+
+```solidity
+IERC20(path[path.length - 1]).balanceOf(to)
+```
+
+Reads the recipient's **current balance** of the final output token.
+
+Suppose before the swap:
+
+```text
+Alice
+
+XYZ = 30
+```
+
+Earlier in this function we stored:
+
+```solidity
+balanceBefore = 30;
+```
+
+Now the entire swap has completed.
+
+Suppose Alice's balance becomes:
+
+```text
+Alice
+
+XYZ = 77
+```
+
+This line returns:
+
+```text
+77
+```
+
+---
+
+# Step 2 — Calculate How Much Was Actually Received
+
+```solidity
+.sub(balanceBefore)
+```
+
+The Router computes:
+
+```text
+Current Balance
+
+77
+
+-
+
+Previous Balance
+
+30
+
+=
+
+47
+```
+
+Now it knows:
+
+```text
+Alice actually received
+
+47 XYZ
+```
+
+Notice that the Router never asks:
+
+> "How many tokens should Alice have received?"
+
+Instead it asks:
+
+> **"How many tokens does Alice actually own now?"**
+
+---
+
+# Why Doesn't It Compare Against `amountOutput`?
+
+One of our biggest questions was:
+
+> **"The Router already calculated `amountOutput`. Why not compare against that?"**
+
+Because the **output token itself** may also charge a transfer fee.
+
+Example:
+
+The Pair sends:
+
+```text
+50 XYZ
+```
+
+Suppose XYZ charges a transfer fee.
+
+Execution becomes:
+
+```text
+Pair sends
+
+50 XYZ
+
+↓
+
+XYZ deducts
+
+3 XYZ
+
+↓
+
+Alice receives
+
+47 XYZ
+```
+
+Although the Pair sent:
+
+```text
+50
+```
+
+Alice only received:
+
+```text
+47
+```
+
+If the Router compared against the Pair's output amount, it would incorrectly believe Alice received all 50 tokens.
+
+Instead, it measures Alice's wallet balance directly.
+
+Reality is always more accurate than assumptions.
+
+---
+
+# Common Confusion — Didn't We Already Measure The Pair Balance?
+
+Yes.
+
+Inside:
+
+```text
+_swapSupportingFeeOnTransferTokens()
+```
+
+we measured:
+
+```text
+How many input tokens actually reached the Pair?
+```
+
+using:
+
+```solidity
+balanceOf(pair) - reserveInput;
+```
+
+That was required to calculate the correct swap output.
+
+Now, back inside this public function, we measure something completely different:
+
+```text
+How many output tokens actually reached the recipient?
+```
+
+using:
+
+```solidity
+balanceOf(to) - balanceBefore;
+```
+
+These are two completely different measurements.
+
+---
+
+# Why Split The Work?
+
+The Router intentionally splits the work into two functions.
+
+## Public Function
+
+Measures:
+
+```text
+Recipient's Output Balance
+```
+
+Question answered:
+
+> **"How many output tokens actually reached the user?"**
+
+---
+
+## Internal Function
+
+Measures:
+
+```text
+Pair's Input Balance
+```
+
+Question answered:
+
+> **"How many input tokens actually reached the Pair?"**
+
+Together, these two measurements make fee-on-transfer swaps possible.
+
+---
+
+# Compare Against `amountOutMin`
+
+```solidity
+>= amountOutMin
+```
+
+Suppose:
+
+```text
+amountOutMin = 45
+```
+
+Alice actually received:
+
+```text
+47
+```
+
+The check becomes:
+
+```text
+47 >= 45
+
+✅ True
+```
+
+The transaction succeeds.
+
+Now suppose Alice only received:
+
+```text
+43
+```
+
+The check becomes:
+
+```text
+43 >= 45
+
+❌ False
+```
+
+Execution immediately reverts.
+
+---
+
+# Common Confusion — But The Swaps Already Happened!
+
+One of our questions was:
+
+> **"The swaps already executed. Isn't it too late to check now?"**
+
+No.
+
+Everything happens inside **one single Ethereum transaction**.
+
+Timeline:
+
+```text
+Transfer Tokens
+
+↓
+
+Execute Every Swap
+
+↓
+
+Measure Recipient Balance
+
+↓
+
+require()
+
+↓
+
+Success
+OR
+Revert Entire Transaction
+```
+
+If this `require()` fails:
+
+```text
+Everything
+
+↓
+
+Reverts
+```
+
+That includes:
+
+- Every token transfer.
+- Every Pair swap.
+- Every reserve update.
+- Every state change.
+
+The blockchain behaves as if the transaction never happened.
+
+---
+
+# Biggest Realization
+
+The normal Router protects users by verifying a **prediction** before swapping.
+
+```text
+Predict Output
+
+↓
+
+Check amountOutMin
+
+↓
+
+Execute Swap
+```
+
+This Router cannot do that.
+
+Instead it protects users by verifying the **actual result**.
+
+```text
+Transfer
+
+↓
+
+Swap
+
+↓
+
+Measure Actual Output
+
+↓
+
+Check amountOutMin
+
+↓
+
+Success / Revert
+```
+
+Fee-on-transfer tokens make accurate prediction impossible before transfers occur, so this Router verifies reality instead.
+
+---
+
+# Function Complete ✅
+
+At this point:
+
+- The input tokens have been transferred.
+- The Pair's actual received input has been measured.
+- Every swap has executed.
+- The recipient's actual received output has been measured.
+- The minimum output guarantee has been verified.
+
+If the check passes, the transaction completes successfully.
+
+If it fails, the EVM reverts the **entire transaction**, restoring the blockchain to the exact state it was in before the swap began.

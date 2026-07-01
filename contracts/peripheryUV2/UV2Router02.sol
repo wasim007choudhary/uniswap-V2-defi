@@ -21,6 +21,7 @@ contract UV2Router02 is IUV2Router02 {
     error UV2Router02___ExecutionTimeExceeded();
     error UV2Router02___swappingExactTokensForTokens__MinimumOutLimitputNotMet();
     error UV2Router___swapTokensForExactTokens__MaximumInputAmountLimitExceeded();
+    error UV2Router___swapExactTokensForTokensSupportingFeeOnTransferTokens___OutputAmountBelowUserMinimumLimit();
 
     /*//////////////////////////////////////////////////////////////
                                 STATE VARIABLES
@@ -189,7 +190,7 @@ contract UV2Router02 is IUV2Router02 {
                 input == token0 ? (uint256(0), amountOut) : (amountOut, uint256(0));
             address _to = i < path.length - 2 ? UV2Library.pairFor(i_factory, output, path[i + 2]) : to;
             ///@custom:see  for next IUV2pair.swap  see notes notes/Core/UV2Pair--swap.md for complete dissection
-            IUV2Pair(UV2Library.pairFor(i_factory, input, output)).swap(amount0out, amount1out, to, new bytes(0));
+            IUV2Pair(UV2Library.pairFor(i_factory, input, output)).swap(amount0out, amount1out, _to, new bytes(0));
         }
     }
 
@@ -360,7 +361,7 @@ contract UV2Router02 is IUV2Router02 {
     /*-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/
-    function _swapSupportingFeeOnTransferTokens(address[] calldata path, address _to) internal {
+    function _swapSupportingFeeOnTransferTokens(address[] calldata path, address to) internal {
         for (uint256 i = 0; i < path.length - 1; i++) {
             (address input, address output) = (path[i], path[i + 1]);
             (address token0,) = UV2Library.sortTokens(input, output);
@@ -378,8 +379,8 @@ contract UV2Router02 is IUV2Router02 {
             }
             (uint256 amount0out, uint256 amount1out) =
                 input == token0 ? (uint256(0), amountOut) : (amountOut, uint256(0));
-            address to = i < path.length - 2 ? UV2Library.pairFor(factory, output, path[i + 2]); _to;
-            pair.swap(amount0out, amount1out, to, new bytes(0));    
+            address _to = i < path.length - 2 ? UV2Library.pairFor(factory, output, path[i + 2]); to;
+            pair.swap(amount0out, amount1out, _to, new bytes(0));    
         }
     }
 
@@ -395,6 +396,9 @@ contract UV2Router02 is IUV2Router02 {
         );
         uint256 balanceBefore = IERC20(path[path.length - 1]).balanceOf(to);
         _swapSupportingFeeOnTransferTokens(path, to);
+        if(IERC20(path[path.length -1]).balanceOf(to) - balanceBefore < minOutputAmount) {
+            revert UV2Router___swapExactTokensForTokensSupportingFeeOnTransferTokens___OutputAmountBelowUserMinimumLimit();
+        }
     }
 
     /*/////////////////////////////////////////////////////////////////////////////////////
