@@ -67,7 +67,48 @@ contract UV2Router02 is IUV2Router02 {
     /*//////////////////////////////////////////////////////////////
                              Adding lIQUIDITY FUNCTIONS
     //////////////////////////////////////////////////////////////*/
-
+    /*-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+    -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+    ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/
+    /**
+     * @notice Computes the optimal token amounts to add as liquidity while preserving the current pool ratio.
+     *
+     * @dev
+     * - Creates the Pair contract if it does not already exist.
+     * - If the pool has no liquidity (both reserves are zero), the desired token amounts are used directly since no reserve ratio exists yet.
+     * - For existing pools, the function calculates the optimal deposit amounts using the current reserve ratio so that adding liquidity does not change the pool price.
+     * - The Router first attempts to use the entire desired amount of Token A and computes the required amount of Token B.
+     * - If the caller cannot supply enough Token B, the Router instead uses the entire desired amount of Token B and computes the required amount of Token A.
+     * - The computed deposit amounts are returned and are intended to be transferred to the Pair contract by the caller.
+     * - The assertion verifies an internal mathematical invariant: after switching to the Token B path, the required Token A amount must never exceed the caller's desired maximum Token A amount.
+     *
+     * @param tokenA Address of the first ERC20 token in the liquidity pair.
+     * @param tokenB Address of the second ERC20 token in the liquidity pair.
+     * @param amountADesiredMaxInput Maximum amount of Token A the caller is willing to deposit.
+     * @param amountBDesiredMaxInput Maximum amount of Token B the caller is willing to deposit.
+     * @param amountAMinDeposit Minimum acceptable amount of Token A that must actually be deposited, otherwise the transaction reverts.
+     * @param amountBMinDeposit Minimum acceptable amount of Token B that must actually be deposited, otherwise the transaction reverts.
+     *
+     * @return amountA The final amount of Token A that should be transferred to the Pair contract.
+     * @return amountB The final amount of Token B that should be transferred to the Pair contract.
+     *
+     * @custom:reverts UV2Router02___addLiquidity___InsufficientBOptimal_AmountBelowMin
+     * Reverts if the optimal Token B amount required to preserve the current reserve ratio is less than the caller's minimum acceptable Token B deposit.
+     *
+     * @custom:reverts UV2Router02___addLiquidity___InsufficientAOptimal_AmountBelowMin
+     * Reverts if the optimal Token A amount required to preserve the current reserve ratio is less than the caller's minimum acceptable Token A deposit.
+     *
+     * @custom:reverts Panic(0x01)
+     * Reverts if the internal mathematical invariant `amountAOptimal <= amountADesiredMaxInput` is violated.
+     * This should never occur during correct execution and indicates a bug in the Router logic rather than invalid user input.
+     *
+     * -------------------------------------------------------------------------------------------------------------------------------------------------------
+     * @custom:see For a complete, in-depth dissection:
+     * 1. First, go through the conceptual foundation → `notes/Liquidity/1. Conceptual_and_MathematicalFoundation/`
+     * 2. Then, study the contract flow → `notes/Liquidity/2.Code_Implementation/AddLiq_Mint/P1-AddLiq_Mint_ContractFlow.md`
+     * 3. Finally, dive into this internal function here → `notes/Liquidity/2.Code_Implementation/AddLiq_Mint/P2-Router02_internal_addLiquidity().md`
+     *  ----------------------------------------------------------------------------------------------------------------------------------------------------------
+     */
     function _addLiquidity(
         address tokenA,
         address tokenB,
@@ -92,12 +133,11 @@ contract UV2Router02 is IUV2Router02 {
                 (amountA, amountB) = (amountADesiredMaxInput, amountBOptimal);
             } else {
                 uint256 amountAOptimal = UV2Library.quote(amountBDesiredMaxInput, reserveB, reserveA);
-                if (amountAOptimal <= amountADesiredMaxInput) {
-                    if (amountAOptimal < amountAMinDeposit) {
-                        revert UV2Router02___addLiquidity___InsufficientAOptimal_AmountBelowMin();
-                    }
-                    (amountA, amountB) = (amountAOptimal, amountBDesiredMaxInput);
+                assert(amountAOptimal <= amountADesiredMaxInput);
+                if (amountAOptimal < amountAMinDeposit) {
+                    revert UV2Router02___addLiquidity___InsufficientAOptimal_AmountBelowMin();
                 }
+                (amountA, amountB) = (amountAOptimal, amountBDesiredMaxInput);
             }
         }
     }
@@ -241,6 +281,10 @@ contract UV2Router02 is IUV2Router02 {
     /*/////////////////////////////////////////////////////////////
                                External Functions
     //////////////////////////////////////////////////////////////*/
+
+    /*-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+    -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+    ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/
     /**
      * @notice Swaps an exact amount of input tokens for as many output tokens as possible.
      * @dev The swap route is defined by `path`.
