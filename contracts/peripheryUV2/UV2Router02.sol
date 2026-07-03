@@ -142,6 +142,52 @@ contract UV2Router02 is IUV2Router02 {
         }
     }
 
+    /**
+     * @notice Adds liquidity to a token pair by computing the optimal deposit amounts and transferring the tokens into the Pair contract.
+     *
+     * @dev
+     * - Delegates to {_addLiquidity} to determine the optimal Token A and Token B amounts while preserving the current pool reserve ratio.
+     * - Creates the Pair contract if it does not already exist (performed internally by {_addLiquidity}).
+     * - Transfers the computed token amounts directly from the caller to the Pair contract using `transferFrom`.
+     * - The Router never temporarily holds the user's tokens; they move directly from the caller to the Pair contract.
+     * - Once both transfers complete, the Pair contract contains the deposited liquidity and is ready to mint LP tokens.
+     * - The final LP minting step (`Pair.mint()`) is intentionally omitted here and will be covered after its internal implementation has been fully dissected.
+     *
+     * @param tokenA Address of the first ERC20 token in the liquidity pair.
+     * @param tokenB Address of the second ERC20 token in the liquidity pair.
+     * @param amountADesiredMaxInput Maximum amount of Token A the caller is willing to deposit.
+     * @param amountBDesiredMaxInput Maximum amount of Token B the caller is willing to deposit.
+     * @param amountAMinDeposit Minimum acceptable amount of Token A that must actually be deposited after optimal ratio calculation.
+     * @param amountBMinDeposit Minimum acceptable amount of Token B that must actually be deposited after optimal ratio calculation.
+     * @param to Address that will ultimately receive the minted LP tokens once `Pair.mint()` is executed.
+     * @param deadline Unix timestamp after which the transaction becomes invalid and will revert.
+     *
+     * @return amountA The actual amount of Token A transferred into the Pair contract.
+     * @return amountB The actual amount of Token B transferred into the Pair contract.
+     * @return liquidity The amount of LP tokens minted by the Pair contract. This value is assigned after `Pair.mint()` executes.
+     *
+     * @custom:reverts UV2Router02___ExecutionTimeExceeded
+     * Reverts if the current block timestamp exceeds the specified `deadline`.
+     *
+     * @custom:reverts UV2Router02___addLiquidity___InsufficientBOptimal_AmountBelowMin
+     * Propagated from {_addLiquidity} if the optimal Token B amount required to preserve the reserve ratio is below the caller's minimum acceptable Token B deposit.
+     *
+     * @custom:reverts UV2Router02___addLiquidity___InsufficientAOptimal_AmountBelowMin
+     * Propagated from {_addLiquidity} if the optimal Token A amount required to preserve the reserve ratio is below the caller's minimum acceptable Token A deposit.
+     *
+     * @custom:reverts Panic(0x01)
+     * Propagated from {_addLiquidity} if the internal mathematical invariant of the optimal liquidity calculation is violated. This indicates a bug in the Router logic rather than invalid user input.
+     *
+     * @custom:reverts TrasnferHelper__safeTransferFrom__TransferFromNotSuccessful or TrasnferHelper__safeTransferFrom__TokenReturnData_TransferFromFailed
+     * Reverts if either ERC20 `transferFrom` operation fails, typically due to insufficient allowance, insufficient balance, or a non-compliant token implementation or Returning false on transfer.
+     *
+     * -------------------------------------------------------------------------------------------------------------------------------------------------------
+     * @custom:see For a complete, in-depth dissection:
+     * 1. First, go through the conceptual foundation → `notes/Liquidity/1.Conceptual_and_MathematicalFoundation/`
+     * 2. Then, study the contract flow → `notes/Liquidity/2.Code_Implementation/AddLiq_Mint/P1-AddLiq_Mint_ContractFlow.md`
+     * 3. Finally, dive into this internal function here → `notes/Liquidity/2.Code_Implementation/AddLiq_Mint/P2-notes/Liquidity/2. Code_Implementation/AddLiq_Mint/P3-Router02_external_addLiquidity/p3.1-ExecutingTheLiquidityAddition.md`
+     *  ----------------------------------------------------------------------------------------------------------------------------------------------------------
+     */
     function addLiquidity(
         address tokenA,
         address tokenB,
