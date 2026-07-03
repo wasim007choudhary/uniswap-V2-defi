@@ -142,6 +142,31 @@ contract UV2Router02 is IUV2Router02 {
         }
     }
 
+    function addLiquidity(
+        address tokenA,
+        address tokenB,
+        uint256 amountADesiredMaxInput,
+        uint256 amountBDesiredMaxInput,
+        uint256 amountAMinDeposit,
+        uint256 amountBMinDeposit,
+        address to,
+        uint256 deadline
+    )
+        external
+        virtual
+        override
+        ensureExecutionTime(deadline)
+        returns (uint256 amountA, uint256 amountB, uint256 liquidity)
+    {
+        (amountA, amountB) = _addLiquidity(
+            tokenA, tokenB, amountADesiredMaxInput, amountBDesiredMaxInput, amountAMinDeposit, amountBMinDeposit
+        );
+        address pair = UV2Library.pairFor(i_factory, tokenA, tokenB);
+        MyTransferHelper.safeTransferFrom(tokenA, msg.sender, pair, amountA);
+        MyTransferHelper.safeTransferFrom(tokenB, msg.sender, pair, amountB);
+        // will in ckldue th elast line mint aftter dissecting it!
+    }
+
     /*-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/
