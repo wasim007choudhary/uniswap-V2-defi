@@ -82,7 +82,7 @@ contract UV2Router02 is IUV2Router02 {
         (uint256 reserveA, uint256 reserveB) = UV2Library.getReserves(i_factory, tokenA, tokenB);
 
         if (reserveA == 0 && reserveB == 0) {
-            (amountA,, amountB) = (amountADesiredMaxInput, amountBDesiredMaxInput);
+            (amountA, amountB) = (amountADesiredMaxInput, amountBDesiredMaxInput);
         } else {
             uint256 amountBOptimal = UV2Library.quote(amountADesiredMaxInput, reserveA, reserveB);
             if (amountBOptimal <= amountBDesiredMaxInput) {
