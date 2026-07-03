@@ -11,6 +11,8 @@ import {MyTransferHelper} from "contracts/peripheryUV2/library/WTransferHelper.s
 
 import {IERC20} from "contracts/peripheryUV2/Interfaces/IERC20.sol";
 
+import {IUV2Factory} from "contracts/coreUV2/Interface/IUV2Factory.sol";
+
 /*//////////////////////////////////////////////////////////////
                         |  CONTRACT
 //////////////////////////////////////////////////////////////*/
@@ -22,6 +24,9 @@ contract UV2Router02 is IUV2Router02 {
     error UV2Router02___swappingExactTokensForTokens__MinimumOutLimitputNotMet();
     error UV2Router___swapTokensForExactTokens__MaximumInputAmountLimitExceeded();
     error UV2Router___swapExactTokensForTokensSupportingFeeOnTransferTokens___OutputAmountBelowUserMinimumLimit();
+    error UV2Router02___addLiquidity__PairDoesNotExist();
+    error UV2Router02___addLiquidity___InsufficientBOptimal_AmountBelowMin();
+    error UV2Router02___addLiquidity___InsufficientAOptimal_AmountBelowMin();
 
     /*//////////////////////////////////////////////////////////////
                                 STATE VARIABLES
@@ -58,6 +63,45 @@ contract UV2Router02 is IUV2Router02 {
         }
         _;
     }
+
+    /*//////////////////////////////////////////////////////////////
+                             Adding lIQUIDITY FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
+
+    function _addLiquidity(
+        address tokenA,
+        address tokenB,
+        uint256 amountADesiredMaxInput, // "MAX TokenA I am willing  to deposit"
+        uint256 amountBDesiredMaxInput, // "MAX TokenB I am willing to deposit"
+        uint256 amountAMinDeposit, // Minimum deposit at least this much Token A or revert
+        uint256 amountBMinDeposit // Minimum deposit at least this much Token B or revert
+    ) internal virtual returns (uint256 amountA, uint256 amountB) {
+        if (IUV2Factory(i_factory).getPair(tokenA, tokenB) == address(0)) {
+            IUV2Factory(i_factory).createPair(tokenA, tokenB);
+        }
+        (uint256 reserveA, uint256 reserveB) = UV2Library.getReserves(i_factory, tokenA, tokenB);
+
+        if (reserveA == 0 && reserveB == 0) {
+            (amountA,, amountB) = (amountADesiredMaxInput, amountBDesiredMaxInput);
+        } else {
+            uint256 amountBOptimal = UV2Library.quote(amountADesiredMaxInput, reserveA, reserveB);
+            if (amountBOptimal <= amountBDesiredMaxInput) {
+                if (amountBOptimal < amountBMinDeposit) {
+                    revert UV2Router02___addLiquidity___InsufficientBOptimal_AmountBelowMin();
+                }
+                (amountA, amountB) = (amountADesiredMaxInput, amountBOptimal);
+            } else {
+                uint256 amountAOptimal = UV2Library.quote(amountBDesiredMaxInput, reserveB, reserveA);
+                if (amountAOptimal <= amountADesiredMaxInput) {
+                    if (amountAOptimal < amountAMinDeposit) {
+                        revert UV2Router02___addLiquidity___InsufficientAOptimal_AmountBelowMin();
+                    }
+                    (amountA, amountB) = (amountAOptimal, amountBDesiredMaxInput);
+                }
+            }
+        }
+    }
+
     /*-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/
