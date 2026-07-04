@@ -250,6 +250,314 @@ The correct answer
 
 must lie somewhere between them.
 
+
+---
+
+# A Different Way To Understand `y / x` (Rectangle Intuition)
+
+There is another beautiful way to understand why the Babylonian Method uses
+
+```solidity
+y / x
+```
+
+instead of some random mathematical operation.
+
+Imagine that the original number (`y`) represents the **area of a rectangle**.
+
+For example,
+
+```
+y = 100
+```
+
+means
+
+```
+Area = 100 square units
+```
+
+Now suppose our current guess (`x`) is
+
+```
+20
+```
+
+Think of this guess as the **width** of the rectangle.
+
+We already know the formula for the area of a rectangle.
+
+```
+Area = Width × Height
+```
+
+We already know
+
+```
+Area = 100
+```
+
+and
+
+```
+Width = 20
+```
+
+So how do we find the height?
+
+Simple.
+
+```
+Height = Area ÷ Width
+```
+
+Substitute the values.
+
+```
+Height = 100 ÷ 20
+
+=
+
+5
+```
+
+Now our rectangle looks like this.
+
+```
+            Width = 20
+
++----------------------------+
+|                            |
+|                            |
+|                            |  Height = 5
+|                            |
++----------------------------+
+```
+
+Notice something important.
+
+This is **not a square**.
+
+The width is
+
+```
+20
+```
+
+but the height is
+
+```
+5
+```
+
+A square must have **equal sides**.
+
+```
+Width = Height
+```
+
+For example,
+
+```
+10 × 10 = 100
+```
+
+```
++----------+
+|          |
+|          | 10
+|          |
++----------+
+
+     10
+```
+
+The area is still
+
+```
+100
+```
+
+but now both sides are equal.
+
+That is exactly what we want.
+
+Our current rectangle has sides
+
+```
+20
+
+and
+
+5
+```
+
+One side is too large.
+
+One side is too small.
+
+How can we move both sides toward each other?
+
+The simplest idea is to take the average.
+
+```
+(20 + 5) / 2
+
+=
+
+12
+```
+
+Now our next guess becomes
+
+```
+12
+```
+
+Let's repeat the process.
+
+Current guess
+
+```
+12
+```
+
+Other side
+
+```
+100 ÷ 12
+
+=
+
+8
+```
+
+Now the rectangle is
+
+```
+Width = 12
+
+Height = 8
+```
+
+Notice what happened.
+
+Originally we had
+
+```
+20
+
+and
+
+5
+```
+
+Now we have
+
+```
+12
+
+and
+
+8
+```
+
+The two sides became much closer together.
+
+Repeat once more.
+
+Current guess
+
+```
+10
+```
+
+Other side
+
+```
+100 ÷ 10
+
+=
+
+10
+```
+
+Now both sides are equal.
+
+```
+Width = 10
+
+Height = 10
+```
+
+The rectangle has become a perfect square.
+
+```
++----------+
+|          |
+|          | 10
+|          |
++----------+
+
+     10
+```
+
+The side length of that square is
+
+```
+10
+```
+
+which is exactly
+
+```
+√100
+```
+
+This is the beautiful idea behind the Babylonian Method.
+
+Every iteration starts with a rectangle.
+
+```
+Width = Current Guess
+
+Height = y ÷ Current Guess
+```
+
+If the rectangle is not a square,
+
+the algorithm averages the two sides to make them closer together.
+
+```
+Large Side
+
+↓
+
+Average
+
+↑
+
+Small Side
+```
+
+After repeating this process several times,
+
+both sides eventually become equal.
+
+At that moment,
+
+the rectangle has become a square,
+
+and that common side length is the square root.
+
+This is exactly why the Babylonian formula is
+
+```solidity
+x = (y / x + x) / 2;
+```
+
+It is simply taking the average of the rectangle's two sides until they become equal.
+
 ---
 
 # So What Should We Do?
