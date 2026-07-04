@@ -1,5 +1,7 @@
 # Step 5 — Creating An Even Better Guess (The Babylonian Formula)
 
+>To read only about Babylonian Formula see: (https://en.wikipedia.org/wiki/Methods_of_computing_square_roots#Babylonian_method)
+>But we made it more simpler here to a newbiew intuition!
 The next line is
 
 ```solidity
