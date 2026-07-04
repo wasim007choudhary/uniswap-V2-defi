@@ -151,7 +151,7 @@ contract UV2Router02 is IUV2Router02 {
      * - Transfers the computed token amounts directly from the caller to the Pair contract using `transferFrom`.
      * - The Router never temporarily holds the user's tokens; they move directly from the caller to the Pair contract.
      * - Once both transfers complete, the Pair contract contains the deposited liquidity and is ready to mint LP tokens.
-     * - The final LP minting step (`Pair.mint()`) is intentionally omitted here and will be covered after its internal implementation has been fully dissected.
+     * @dev Calls `Pair.mint(to)` to mint LP tokens, update the Pair's reserves, perform protocol fee accounting (if enabled), and finalize the liquidity addition.
      *
      * @param tokenA Address of the first ERC20 token in the liquidity pair.
      * @param tokenB Address of the second ERC20 token in the liquidity pair.
