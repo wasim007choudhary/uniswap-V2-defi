@@ -1,0 +1,681 @@
+# Step 3 — Creating A Better Guess
+
+The next line is
+
+```solidity
+uint x = y / 2 + 1;
+```
+
+At first glance, this line raises an important question.
+
+> **Why do we suddenly need another variable?**
+
+We already have
+
+```solidity
+z
+```
+
+Why can't the algorithm simply use `z`?
+
+To understand this, let's first understand the roles of the variables.
+
+---
+
+# Remember Our Variables
+
+So far we have
+
+```
+y = Original Number
+
+z = Current Best Guess
+```
+
+Now the algorithm introduces
+
+```
+x
+```
+
+Think of `x` as
+
+```
+The New Guess
+```
+
+So the variables now have these jobs.
+
+```
+y
+
+↓
+
+Original Number
+```
+
+```
+z
+
+↓
+
+Current Best Guess
+```
+
+```
+x
+
+↓
+
+New Guess Being Tested
+```
+
+---
+
+# Think Like Two Friends
+
+Imagine two friends are trying to guess your age.
+
+Friend A says
+
+```
+100
+```
+
+Friend B says
+
+```
+51
+```
+
+Now they compare the guesses.
+
+Question
+
+```
+Which guess is better?
+```
+
+Obviously,
+
+```
+51
+```
+
+is much closer.
+
+Now imagine there was only one guess.
+
+```
+100
+```
+
+Would there be anything to compare?
+
+No.
+
+The algorithm needs **two guesses** so it can decide whether the new one is better than the old one.
+
+That is exactly why both `z` and `x` exist.
+
+---
+
+# Let's Continue Our Example
+
+Suppose
+
+```
+y = 100
+```
+
+Earlier we executed
+
+```solidity
+z = y;
+```
+
+So we have
+
+```
+y = 100
+
+z = 100
+```
+
+Now execute
+
+```solidity
+uint x = y / 2 + 1;
+```
+
+Substitute the values.
+
+```
+x = 100 / 2 + 1
+```
+
+Remember,
+
+division happens before addition.
+
+```
+100 / 2
+
+=
+
+50
+```
+
+Now add one.
+
+```
+50 + 1
+
+=
+
+51
+```
+
+So
+
+```
+x = 51
+```
+
+Current situation becomes
+
+```
+Question
+
+100
+
+↓
+
+Current Best Guess (z)
+
+100
+
+↓
+
+New Guess (x)
+
+51
+```
+
+---
+
+# Why Divide By 2?
+
+This is a very common question.
+
+Why not divide by
+
+```
+3
+```
+
+or
+
+```
+10
+```
+
+or
+
+```
+100
+```
+
+Let's think like a child.
+
+Imagine I ask
+
+> Guess my age.
+
+You answer
+
+```
+100
+```
+
+I tell you
+
+> That's way too high.
+
+Would your next guess be
+
+```
+99
+```
+
+Maybe.
+
+But improving by only one each time would take forever.
+
+Would you jump all the way to
+
+```
+1
+```
+
+Probably not.
+
+That is too extreme.
+
+A much smarter idea is to move somewhere near the middle.
+
+```
+100
+
+↓
+
+50
+```
+
+That is a much better second guess.
+
+The Babylonian Method follows the same idea.
+
+Instead of making tiny improvements,
+
+it makes **large improvements**.
+
+Dividing by two quickly moves the guess much closer to the correct answer.
+
+---
+
+# Why Add One?
+
+Now another question appears.
+
+Why not simply write
+
+```solidity
+x = y / 2;
+```
+
+Why does Uniswap write
+
+```solidity
++ 1
+```
+
+Let's investigate.
+
+---
+
+# Imagine There Was No `+1`
+
+Suppose
+
+```
+y = 4
+```
+
+Without the `+1`
+
+```
+4 / 2
+
+=
+
+2
+```
+
+Everything still works.
+
+Now
+
+```
+y = 5
+```
+
+Remember,
+
+Solidity performs integer division.
+
+```
+5 / 2
+
+=
+
+2
+```
+
+not
+
+```
+2.5
+```
+
+Still okay.
+
+Now suppose
+
+```
+y = 1
+```
+
+Without the `+1`
+
+```
+1 / 2
+
+=
+
+0
+```
+
+Now imagine the algorithm later computes
+
+```solidity
+y / x
+```
+
+If
+
+```
+x = 0
+```
+
+the program would attempt
+
+```
+1 / 0
+```
+
+which is impossible.
+
+Division by zero would immediately revert the transaction.
+
+Adding one guarantees that the initial value of `x` is never zero.
+
+---
+
+# But Wait...
+
+Some people notice something interesting.
+
+They say
+
+> "Didn't we already check
+
+```solidity
+if (y > 3)
+```
+
+?"
+
+Exactly.
+
+Values
+
+```
+1
+
+2
+
+3
+```
+
+never even reach this line.
+
+So for every value that does reach here,
+
+```
+y ≥ 4
+```
+
+which means
+
+```
+y / 2
+```
+
+is already at least
+
+```
+2
+```
+
+Even then,
+
+adding one still gives us a simple,
+
+safe,
+
+positive starting guess.
+
+---
+
+# More Examples
+
+## Example 1
+
+```
+y = 100
+```
+
+```
+z = 100
+
+x = 100 / 2 + 1
+
+= 50 + 1
+
+= 51
+```
+
+---
+
+## Example 2
+
+```
+y = 64
+```
+
+```
+z = 64
+
+x = 64 / 2 + 1
+
+= 32 + 1
+
+= 33
+```
+
+---
+
+## Example 3
+
+```
+y = 25
+```
+
+```
+z = 25
+
+x = 25 / 2 + 1
+
+= 12 + 1
+
+= 13
+```
+
+Notice something important.
+
+```
+25 / 2
+
+=
+
+12
+
+not
+
+12.5
+```
+
+because Solidity discards the decimal part during integer division.
+
+---
+
+# What Have We Achieved?
+
+After these two lines
+
+```solidity
+z = y;
+
+uint x = y / 2 + 1;
+```
+
+we now have **two guesses**.
+
+For example,
+
+```
+Question
+
+√100
+
+↓
+
+Old Guess (z)
+
+100
+
+↓
+
+New Guess (x)
+
+51
+```
+
+The algorithm still does **not** know the answer.
+
+However,
+
+it finally has something to compare.
+
+That comparison happens in the next line.
+
+---
+
+# Child Analogy
+
+Imagine you are throwing a ball into a basket.
+
+First throw
+
+```
+100 metres
+```
+
+Way too far.
+
+Second throw
+
+```
+51 metres
+```
+
+Still not perfect,
+
+but definitely better.
+
+The second throw does not need to be correct.
+
+It only needs to be **better than the first one**.
+
+That is exactly what `x` is.
+
+It is simply a better guess.
+
+---
+
+# Mental Model So Far
+
+```
+Question
+
+Find √100
+
+          │
+          ▼
+
+Original Number
+
+y = 100
+
+          │
+          ▼
+
+Current Best Guess
+
+z = 100
+
+          │
+          ▼
+
+Create Better Guess
+
+x = 51
+
+          │
+          ▼
+
+Now Compare Them...
+```
+
+Notice something important.
+
+```
+y
+```
+
+never changes.
+
+It is always the original number.
+
+```
+z
+```
+
+changes whenever we find a better guess.
+
+```
+x
+```
+
+is repeatedly recalculated to produce the next guess.
+
+Understanding these three roles is one of the biggest steps toward understanding the Babylonian Method.
+
+---
+
+# The Next Step
+
+Now the algorithm finally asks its first real question.
+
+```solidity
+while (x < z)
+```
+
+At first, this looks like an ordinary loop.
+
+However,
+
+this condition is actually asking a much deeper question.
+
+It is asking
+
+> **"Is my new guess better than my current best guess?"**
+
+As long as the answer is **Yes**,
+
+the algorithm keeps improving.
+
+The moment the answer becomes **No**,
+
+the algorithm stops.
