@@ -10,6 +10,9 @@ import {IUV2Pair} from "contracts/coreUV2/Interface/IUV2Pair.sol";
 
 import {UQ112xUQ112} from "contracts/coreUV2/library/UQ112x112.sol";
 
+import {IUV2Factory} from "contracts/coreUV2/Interface/IUV2Factory.sol";
+import {Math} from "contracts/coreUV2/library/Math.sol";
+
 contract UV2Pair is IUV2Pair {
     //  using UQ112xUQ112 for uint224; will do it in normal library call wont do this shit!
     /*///////////////////////////////////////////////////////
@@ -28,6 +31,8 @@ contract UV2Pair is IUV2Pair {
 
     uint256 public price0CumulativeLast;
     uint256 public price1CumulativeLast;
+
+    uint256 public ammKlastSnapshot;
 
     /*////////////////////////////////////////////////////////
                        ERRORS
@@ -297,6 +302,21 @@ contract UV2Pair is IUV2Pair {
         _reserve1 = uint112(_balance1);
         timeStampLastUpdate = blockTimestamp;
         emit Sync(_reserve0, reserve1);
+    }
+
+    function _mintFee(uint112 _reserve0, uint112 _reserve1) private returns (bool protocolfeeOn) {
+        address protocolfeeOnAddress = IUV2Factory(i_factory).feeTo();
+        protocolfeeOn = protocolfeeOnAddress != address(0);
+        uint256 _ammKlastSnapshot = ammKlastSnapshot;
+        if (protocolfeeOn) {
+            uint256 currentAMMKroot = Math.sqrt(uint256(_reserve0) * _reserve1);
+            uint256 lastAMMKrootSnapshot = Math.sqrt(_ammKlastSnapshot);
+            if(currentAMMKroot > lastAMMKrootSnapshot) {
+                
+            }
+        } else if (_ammKlastSnapshot != 0) {
+            ammKlastSnapshot = 0;
+        }
     }
 
     function mint(address to) external returns (uint256 liquidity) {
