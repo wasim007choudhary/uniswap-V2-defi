@@ -5,6 +5,7 @@ pragma solidity ^0.8.20;
 import {IUV2ERC20} from "contracts/coreUV2/Interface/IUV2ERC20.sol";
 
 contract UniswapV2ERC20 is IUV2ERC20 {
+   
     string public constant name = "Uniswap-V2 LP Token";
     string public constant symbol = "UV2-LP";
     uint8 public constant decimal = 18;
@@ -36,7 +37,7 @@ contract UniswapV2ERC20 is IUV2ERC20 {
 
     function _transfer(address from, address to, uint256 value) private {
         balanceOf[from] -= value;
-        balanceOf[to += value] 
+        balanceOf[to] += value; 
         emit Transfer(from, to, value);
     }
        function _approve(address owner, address spender, uint256 value) private {
@@ -52,11 +53,11 @@ contract UniswapV2ERC20 is IUV2ERC20 {
     function _burn(address from, uint256 value) private {
         totalSupply -= value;
         balanceOf[from] -= value;
-        emit Trasnfer(from, address(0), value);
+        emit Transfer(from, address(0), value);
     }
 
  
-function trasnfer(address to, uint256 value) external returns(bool){
+function transfer(address to, uint256 value) external returns(bool){
     _transfer(msg.sender, to, value);
     return true;
 }
