@@ -309,11 +309,9 @@ contract UV2Pair is IUV2Pair {
         protocolfeeOn = protocolfeeOnAddress != address(0);
         uint256 _ammKlastSnapshot = ammKlastSnapshot;
         if (protocolfeeOn) {
-            uint256 currentAMMKroot = Math.sqrt(uint256(_reserve0) * _reserve1);
-            uint256 lastAMMKrootSnapshot = Math.sqrt(_ammKlastSnapshot);
-            if(currentAMMKroot > lastAMMKrootSnapshot) {
-                
-            }
+            uint256 currentAMMKroot = Math.squareRoot(uint256(_reserve0) * _reserve1);
+            uint256 lastAMMKrootSnapshot = Math.squareRoot(_ammKlastSnapshot);
+            if (currentAMMKroot > lastAMMKrootSnapshot) {}
         } else if (_ammKlastSnapshot != 0) {
             ammKlastSnapshot = 0;
         }
