@@ -5,6 +5,7 @@ pragma solidity ^0.8.20;
 import {IUV2ERC20} from "contracts/coreUV2/Interface/IUV2ERC20.sol";
 
 contract UniswapV2ERC20 is IUV2ERC20 {
+    error UV2ERC20__permit__SignatureImplementationDeadlinePassed
    
     string public constant name = "Uniswap-V2 LP Token";
     string public constant symbol = "UV2-LP";
@@ -65,6 +66,13 @@ function transfer(address to, uint256 value) external returns(bool){
 function approve( address spender, uint256 value) external returns(bool) {
     _approve(msg.sender, spender, value);
     return true;
+}
+
+
+function permit(address owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s) external {
+    if(deadline < block.timestamp) {
+        revert UV2ERC20__permit__SignatureImplementationDeadlinePassed()
+    }
 }
 
 
