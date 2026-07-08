@@ -72,6 +72,44 @@ contract UniswapV2ERC20 is IUV2ERC20 {
         return true;
     }
 
+    /**
+     * @notice Transfers tokens from one address to another using a previously granted allowance.
+     * @dev Allows an approved spender to move tokens owned by `from`.
+     *
+     *      Execution flow:
+     *      1. Checks whether the spender has an unlimited allowance (`type(uint256).max`).
+     *      2. If the allowance is not unlimited, decreases it by `value`.
+     *         - If `value` exceeds the remaining allowance, the subtraction underflows
+     *           and the transaction automatically reverts in Solidity 0.8+.
+     *      3. Calls `_transfer(from, to, value)` to move the tokens.
+     *      4. Returns `true` on success.
+     *
+     *      Unlimited allowance is treated as a special sentinel value. When the allowance
+     *      equals `type(uint256).max`, it is not decremented after each transfer,
+     *      allowing repeated transfers without requiring additional approvals.
+     *
+     *      This function does not explicitly compare `allowance >= value`; instead,
+     *      the subtraction operation enforces this requirement through Solidity's
+     *      built-in underflow checks.
+     *
+     *      Note that an unlimited allowance does not bypass balance checks. The owner
+     *      must still own at least `value` tokens, otherwise `_transfer()` reverts due
+     *      to an insufficient balance.
+     *
+     * @param from The address currently owning the tokens.
+     * @param to The recipient address that will receive the tokens.
+     * @param value The amount of tokens to transfer.
+     *
+     * @return success Returns `true` if the transfer completes successfully.
+     *
+     * @custom:reverts Panic(0x11)
+     * Reverts if the remaining allowance is less than `value`, causing an arithmetic
+     * underflow during allowance subtraction.
+     *
+     * @custom:reverts Panic(0x11)
+     * Reverts if `from` does not have at least `value` tokens, causing an arithmetic
+     * underflow during the balance update inside `_transfer()`.
+     */
     function transferFrom(address from, address to, uint256 value) external returns (bool) {
         if (allowance[from][msg.sender] != type(uint256).max) {
             allowance[from][msg.sender] -= value;

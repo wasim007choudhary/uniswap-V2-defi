@@ -9,7 +9,7 @@ interface IUV2ERC20 {
     function totalSupply() external view returns (uint256);
     function balanceOf(address) external view returns (uint256);
     function allowance(address owner, address spender) external view returns (uint256);
-    function nounces(address addressOwner) external view returns (uint256);
+    function nonces(address addressOwner) external view returns (uint256);
 
     function DOMAIN_SEPARATOR() external view returns (bytes32);
     function PERMIT_TYPEHASH() external pure returns (bytes32);
