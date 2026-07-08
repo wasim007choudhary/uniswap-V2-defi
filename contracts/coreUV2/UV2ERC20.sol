@@ -24,7 +24,7 @@ contract UniswapV2ERC20 is IUV2ERC20 {
     event Approval(address indexed owner, address indexed spender, uint256 value);
     event Transfer(address indexed from, address indexed to, uint256 value);
 
-    mapping(address => uint256) public nounces;
+    mapping(address => uint256) public nonces;
 
     constructor() {
         uint256 chainId = block.chainid;
@@ -135,7 +135,7 @@ contract UniswapV2ERC20 is IUV2ERC20 {
                 keccak256(abi.encode(PERMIT_TYPEHASH, owner, spender, value, nonces[owner]++, deadline))
             )
         );
-        address recoveredAddress = ercrecover(digest, v, r, s);
+        address recoveredAddress = ecrecover(digest, v, r, s);
         if (recoveredAddress == address(0) || recoveredAddress != owner) {
             revert UV2ERC20__permit__InvalidSignature();
         }
