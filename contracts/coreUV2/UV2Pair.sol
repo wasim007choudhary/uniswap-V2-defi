@@ -281,7 +281,7 @@ contract UV2Pair is IUV2Pair, UniswapV2ERC20 {
      * 32-bit clock. In Solidity 0.8+, this behavior requires an `unchecked`
      * block because arithmetic overflow otherwise reverts.
      *
-     * @custom:see notes/UV2Pair/_update.md
+     * @custom:see notes/UV2Pair/_update.md for complete dissection
      * @custom:see notes/Oracles/ - ALL OF THEM
      */
     function _update(uint256 _balance0, uint256 _balance1, uint112 _reserve0, uint112 _reserve1) private {
@@ -305,6 +305,76 @@ contract UV2Pair is IUV2Pair, UniswapV2ERC20 {
         timeStampLastUpdate = blockTimestamp;
         emit Sync(_reserve0, reserve1);
     }
+
+    /*-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+    -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+    ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/
+    /**
+     * @notice Mints protocol LP tokens if protocol fees are enabled and the AMM's measured
+     *         liquidity has increased since the last recorded snapshot.
+     *
+     * @dev This function implements Uniswap V2's protocol fee mechanism.
+     *
+     *      Workflow:
+     *      1. Reads the protocol fee recipient (`feeTo`) from the Factory.
+     *      2. Determines whether protocol fees are enabled (`protocolfeeOn`).
+     *      3. Loads the previous AMM liquidity snapshot (`ammKlastSnapshot`).
+     *      4. If protocol fees are enabled and a valid snapshot exists:
+     *         - Computes the current liquidity metric: √(reserve0 × reserve1).
+     *         - Computes the previous liquidity metric: √(ammKlastSnapshot).
+     *         - If liquidity has grown, calculates the exact number of LP tokens
+     *           the protocol should receive.
+     *         - Mints those LP tokens to the protocol fee recipient.
+     *      5. If protocol fees are disabled, clears the stored snapshot so that
+     *         future protocol fee calculations start from a fresh baseline.
+     *
+     *      Protocol fees are **not** collected during swaps. Trading fees always
+     *      remain inside the liquidity pool. This function merely recognizes the
+     *      accumulated fee-generated liquidity growth and compensates the protocol
+     *      by minting LP tokens that represent ownership of that growth.
+     *
+     *      The number of LP tokens minted is derived from:
+     *
+     *      liquidity =
+     *      (totalSupply × (currentRootK - previousRootK))
+     *      ------------------------------------------------
+     *           (5 × currentRootK + previousRootK)
+     *
+     *      This formula ensures that, after minting increases `totalSupply`,
+     *      the protocol owns exactly one-sixth of the fee-generated liquidity
+     *      growth without removing any underlying assets from the pool.
+     *
+     *      If the calculated liquidity rounds down to zero due to Solidity's
+     *      integer division, no LP tokens are minted. The accumulated fees
+     *      remain inside the pool and may result in LP token minting during
+     *      a future liquidity event once sufficient growth has accumulated.
+     *
+     *      When protocol fees are disabled, any existing AMM liquidity snapshot
+     *      is discarded. This prevents the protocol from retroactively claiming
+     *      fees that accumulated while protocol fee collection was turned off.
+     *
+     * @param _reserve0 The current stored reserve of token0 before reserve updates.
+     * @param _reserve1 The current stored reserve of token1 before reserve updates.
+     *
+     * @return protocolfeeOn True if protocol fee collection is enabled; otherwise false.
+     *
+     * @custom:security Uses stored reserves rather than current token balances to
+     *                  measure only fee-generated liquidity growth and exclude any
+     *                  liquidity being added during the current transaction.
+     *
+     * @custom:security Mints protocol LP tokens before user LP tokens to ensure
+     *                  newly added liquidity providers do not receive ownership
+     *                  that belongs to the protocol.
+     *
+     * @custom:security Resets the AMM liquidity snapshot when protocol fees are
+     *                  disabled to establish a new baseline if protocol fees are
+     *                  enabled again in the future.
+     *
+     *  -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+     *  @custom:see For complete Dissection and a detailed breakdown visit:-
+     *  notes/Liquidity/2. Code_Implementation/AddLiq_Mint/P4-Pair._mintFee , goodLuck, nw even a newbiew can get it with them notes I made-As I myself did ngl
+     *  -------------------------------------------------------------------------------------------------------------------------------------------------------------------
+     */
 
     function _mintProtocolFee(uint112 _reserve0, uint112 _reserve1) private returns (bool protocolfeeOn) {
         address protocolfeeOnAddress = IUV2Factory(i_factory).feeTo();
