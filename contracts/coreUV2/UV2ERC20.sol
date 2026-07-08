@@ -50,13 +50,13 @@ contract UniswapV2ERC20 is IUV2ERC20 {
         emit Approval(owner, spender, value);
     }
 
-    function _mint(address to, uint256 value) private {
+    function _mint(address to, uint256 value) internal {
         totalSupply += value;
         balanceOf[to] += value;
         emit Transfer(address(0), to, value);
     }
 
-    function _burn(address from, uint256 value) private {
+    function _burn(address from, uint256 value) internal {
         totalSupply -= value;
         balanceOf[from] -= value;
         emit Transfer(from, address(0), value);

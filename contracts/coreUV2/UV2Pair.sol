@@ -13,7 +13,9 @@ import {UQ112xUQ112} from "contracts/coreUV2/library/UQ112x112.sol";
 import {IUV2Factory} from "contracts/coreUV2/Interface/IUV2Factory.sol";
 import {Math} from "contracts/coreUV2/library/Math.sol";
 
-contract UV2Pair is IUV2Pair {
+import {UniswapV2ERC20} from "contracts/coreUV2/UV2ERC20.sol";
+
+contract UV2Pair is IUV2Pair, UniswapV2ERC20 {
     //  using UQ112xUQ112 for uint224; will do it in normal library call wont do this shit!
     /*///////////////////////////////////////////////////////
                                   STATE VARIABLES
@@ -304,14 +306,21 @@ contract UV2Pair is IUV2Pair {
         emit Sync(_reserve0, reserve1);
     }
 
-    function _mintFee(uint112 _reserve0, uint112 _reserve1) private returns (bool protocolfeeOn) {
+    function _mintProtocolFee(uint112 _reserve0, uint112 _reserve1) private returns (bool protocolfeeOn) {
         address protocolfeeOnAddress = IUV2Factory(i_factory).feeTo();
         protocolfeeOn = protocolfeeOnAddress != address(0);
         uint256 _ammKlastSnapshot = ammKlastSnapshot;
         if (protocolfeeOn) {
             uint256 currentAMMKroot = Math.squareRoot(uint256(_reserve0) * _reserve1);
             uint256 lastAMMKrootSnapshot = Math.squareRoot(_ammKlastSnapshot);
-            if (currentAMMKroot > lastAMMKrootSnapshot) {}
+            if (currentAMMKroot > lastAMMKrootSnapshot) {
+                uint256 numerator = totalSupply * (currentAMMKroot - lastAMMKrootSnapshot);
+                uint256 denominator = 5 * currentAMMKroot + lastAMMKrootSnapshot;
+                uint256 liquidity = numerator / denominator;
+                if (liquidity > 0) {
+                    _mint(protocolfeeOnAddress, liquidity);
+                }
+            }
         } else if (_ammKlastSnapshot != 0) {
             ammKlastSnapshot = 0;
         }
