@@ -51,7 +51,7 @@ contract UV2Pair is IUV2Pair, UniswapV2ERC20 {
     error UV2Pair___swap__BrokeTheUniswapAMMconstantVariant__K();
     error UV2Pair___update__BalanceExceedsUint112duringDowncasting();
     error UV2Pair__initialize__OnlyFactoryCanCallInitialize_InvalidCaller();
-    error UV2Pair___mint__InsufficientLiquidityMinted();
+    error UV2Pair__mint__ZeroLPTokensToMint();
 
     /*//////////////////////////////////////////////////////////////
                                 MODIFIER
@@ -415,8 +415,8 @@ contract UV2Pair is IUV2Pair, UniswapV2ERC20 {
         } else {
             liquidity = Math.minOfTwo(amount0 * _totalSupply / _reserve0, amount1 * _totalSupply / _reserve1);
         }
-        if (liquidity <= 0) {
-            revert UV2Pair___mint__InsufficientLiquidityMinted();
+        if (liquidity == 0) {
+            revert UV2Pair__mint__ZeroLPTokensToMint();
         }
         _mint(to, liquidity);
         _update(balance0, balance1, _reserve0, _reserve1);
