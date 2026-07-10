@@ -14,6 +14,7 @@ interface IUV2Pair {
         uint256 amount1out,
         address indexed to
     );
+    event Mint(address indexed sender, uint256 amount0, uint256 amount1);
     event Sync(uint112 reserve_0, uint112 reserve_1);
 
     function factory() external view returns (address);

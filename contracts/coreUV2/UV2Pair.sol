@@ -36,6 +36,8 @@ contract UV2Pair is IUV2Pair, UniswapV2ERC20 {
 
     uint256 public ammKlastSnapshot;
 
+    uint256 public constant MINIMUM_LIQUIDITY_LOCKED = 10 ** 3;
+
     /*////////////////////////////////////////////////////////
                        ERRORS
     ////////////////////////////////////////////////////////*/
@@ -49,6 +51,7 @@ contract UV2Pair is IUV2Pair, UniswapV2ERC20 {
     error UV2Pair___swap__BrokeTheUniswapAMMconstantVariant__K();
     error UV2Pair___update__BalanceExceedsUint112duringDowncasting();
     error UV2Pair__initialize__OnlyFactoryCanCallInitialize_InvalidCaller();
+    error UV2Pair___mint__InsufficientLiquidityMinted();
 
     /*//////////////////////////////////////////////////////////////
                                 MODIFIER
@@ -402,6 +405,25 @@ contract UV2Pair is IUV2Pair, UniswapV2ERC20 {
         uint256 balance1 = IERC20(token1).balanceOf(address(this));
         uint256 amount0 = balance0 - _reserve0;
         uint256 amount1 = balance1 - _reserve1;
+        bool protocolFeeOn = _mintProtocolFee(_reserve0, _reserve1);
+
+        uint256 _totalSupply = totalSupply; // gas savings, must be defined here since totalSupply can update in _mintFee
+
+        if (_totalSupply == 0) {
+            liquidity = Math.squareRoot(amount0 * amount1) - MINIMUM_LIQUIDITY_LOCKED;
+            _mint(address(0), MINIMUM_LIQUIDITY_LOCKED); // permanently lock the first MINIMUM_LIQUIDITY_LOCKED tokens
+        } else {
+            liquidity = Math.minOfTwo(amount0 * _totalSupply / _reserve0, amount1 * _totalSupply / _reserve1);
+        }
+        if (liquidity <= 0) {
+            revert UV2Pair___mint__InsufficientLiquidityMinted();
+        }
+        _mint(to, liquidity);
+        _update(balance0, balance1, _reserve0, _reserve1);
+        if (protocolFeeOn) {
+            ammKlastSnapshot = uint256(reserve0) * reserve1;
+        }
+        emit Mint(msg.sender, amount0, amount1);
     }
     /*-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
