@@ -399,6 +399,72 @@ contract UV2Pair is IUV2Pair, UniswapV2ERC20 {
         }
     }
 
+    /*-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+    -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+    ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/
+    /**
+     * @notice Mints LP tokens for newly deposited liquidity.
+     *
+     * @dev This function finalizes the liquidity addition process after the
+     *      underlying tokens have already been transferred into the Pair contract.
+     *
+     *      High-level workflow:
+     *
+     *      1. Reads the previous pool reserves.
+     *      2. Reads the Pair's current token balances.
+     *      3. Determines how much token0 and token1 were deposited by comparing
+     *         balances against the stored reserves.
+     *      4. Recognizes and mints any pending protocol fee LP tokens (if enabled).
+     *      5. Caches the updated total LP token supply.
+     *      6. Determines whether this is:
+     *         - the very first liquidity provider, or
+     *         - an existing liquidity provider.
+     *      7. Calculates the correct number of LP tokens to mint.
+     *      8. Reverts if the calculated LP amount rounds down to zero.
+     *      9. Mints the calculated LP tokens to the specified recipient.
+     *     10. Updates the Pair's stored reserves to match the current balances.
+     *     11. Records a new AMM liquidity snapshot (`ammKlastSnapshot`) when
+     *         protocol fees are enabled.
+     *     12. Emits a {Mint} event.
+     *
+     *      Initial Liquidity:
+     *      - Uses the geometric mean: √(amount0 × amount1).
+     *      - Permanently locks `MINIMUM_LIQUIDITY_LOCKED` LP tokens by minting
+     *        them to the zero address.
+     *
+     *      Existing Liquidity:
+     *      - Uses the proportional ownership formula based on the current
+     *        reserves and total LP token supply.
+     *
+     *      This function does NOT transfer ERC-20 tokens from the liquidity
+     *      provider. It assumes the required assets have already been transferred
+     *      into the Pair contract before `mint()` is called.
+     *
+     * @param to The address that will receive the newly minted LP tokens.
+     *
+     * @return liquidity The number of LP tokens minted for the liquidity provider.
+     *
+     * @custom:reverts UV2Pair__mint__ZeroLPTokensToMint
+     * Reverts if the deposited liquidity is too small to mint at least one LP
+     * token after Solidity's integer rounding.
+     *
+     * @custom:security Protocol fee recognition occurs before LP minting so that
+     *                  any protocol ownership is accounted for before calculating
+     *                  the incoming liquidity provider's ownership.
+     *
+     * @custom:security The total LP token supply is cached only after protocol
+     *                  fee minting because `_mintProtocolFee()` may increase
+     *                  `totalSupply`.
+     *
+     * @custom:security Reserves are updated only after all minting operations
+     *                  have completed, preventing newly deposited liquidity from
+     *                  being mistaken for fee-generated liquidity growth.
+     *  ------------------------------------------------------------------------------------------------------------------------------------------------------------------
+     *  @custom:see For complete Dissection and a detailed breakdown visit:-
+     *  notes/Liquidity/2. Code_Implementation/AddLiq_Mint/P5-Pair.Mint/p5.1-CompleteDissection.md
+     *  ------------------------------------------------------------------------------------------------------------------------------------------------------------------
+     *
+     */
     function mint(address to) external returns (uint256 liquidity) {
         (uint112 _reserve0, uint112 _reserve1,) = getReserves();
         uint256 balance0 = IERC20(token0).balanceOf(address(this));

@@ -210,7 +210,8 @@ contract UV2Router02 is IUV2Router02 {
         address pair = UV2Library.pairFor(i_factory, tokenA, tokenB);
         MyTransferHelper.safeTransferFrom(tokenA, msg.sender, pair, amountA);
         MyTransferHelper.safeTransferFrom(tokenB, msg.sender, pair, amountB);
-        // will in ckldue th elast line mint aftter dissecting it!
+
+        liquidity = IUV2Pair(pair).mint(to);
     }
 
     /*-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
