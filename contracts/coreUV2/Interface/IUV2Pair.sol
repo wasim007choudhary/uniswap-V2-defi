@@ -36,6 +36,7 @@ interface IUV2Pair {
         address indexed to
     );
     event Mint(address indexed sender, uint256 amount0, uint256 amount1);
+    event Burn(address indexed sender, uint256 amount0, uint256 amount1, address indexed to);
     event Sync(uint112 reserve_0, uint112 reserve_1);
 
     function MINIMUM_LIQUIDITY_LOCKED() external pure returns (uint256);

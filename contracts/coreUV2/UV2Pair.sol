@@ -51,6 +51,7 @@ contract UV2Pair is IUV2Pair, UniswapV2ERC20 {
     error UV2Pair___swap__BrokeTheUniswapAMMconstantVariant__K();
     error UV2Pair___update__BalanceExceedsUint112duringDowncasting();
     error UV2Pair__initialize__OnlyFactoryCanCallInitialize_InvalidCaller();
+    error UV2Pair__mint__ZeroLPTokensToMint();
     error UV2Pair___burn__InsufficientLiquidityBurned__and__ZeroTokensReturned();
 
     /*//////////////////////////////////////////////////////////////
@@ -502,7 +503,7 @@ contract UV2Pair is IUV2Pair, UniswapV2ERC20 {
         address _token1 = token1;
         uint256 balance0 = IERC20(_token0).balanceOf(address(this));
         uint256 balance1 = IERC20(_token1).balanceOf(address(this));
-        uint256 liquidity = balanceOf(address(this));
+        uint256 liquidity = balanceOf[address(this)];
         bool protocolFeeOn = _mintProtocolFee(_reserve0, _reserve1);
 
         uint256 _totalSupply = totalSupply;
