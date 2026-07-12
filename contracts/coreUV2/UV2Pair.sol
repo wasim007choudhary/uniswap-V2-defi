@@ -51,7 +51,7 @@ contract UV2Pair is IUV2Pair, UniswapV2ERC20 {
     error UV2Pair___swap__BrokeTheUniswapAMMconstantVariant__K();
     error UV2Pair___update__BalanceExceedsUint112duringDowncasting();
     error UV2Pair__initialize__OnlyFactoryCanCallInitialize_InvalidCaller();
-    error UV2Pair__mint__ZeroLPTokensToMint();
+    error UV2Pair___burn__InsufficientLiquidityBurned__and__ZeroTokensReturned();
 
     /*//////////////////////////////////////////////////////////////
                                 MODIFIER
@@ -497,12 +497,36 @@ contract UV2Pair is IUV2Pair, UniswapV2ERC20 {
     ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/
     function burn(address to) external returns (uint256 amount0, uint256 amount1) {
         (uint112 _reserve0, uint112 _reserve1,) = getReserves();
+
         address _token0 = token0;
         address _token1 = token1;
         uint256 balance0 = IERC20(_token0).balanceOf(address(this));
         uint256 balance1 = IERC20(_token1).balanceOf(address(this));
         uint256 liquidity = balanceOf(address(this));
+        bool protocolFeeOn = _mintProtocolFee(_reserve0, _reserve1);
+
         uint256 _totalSupply = totalSupply;
+
+        amount0 = liquidity * balance0 / _totalSupply;
+        amount1 = liquidity * balance1 / _totalSupply;
+
+        if (amount0 == 0 || amount1 == 0) {
+            revert UV2Pair___burn__InsufficientLiquidityBurned__and__ZeroTokensReturned();
+        }
+
+        _burn(address(this), liquidity);
+        _safeTransfer(_token0, to, amount0);
+        _safeTransfer(_token1, to, amount1);
+
+        balance0 = IERC20(_token0).balanceOf(address(this));
+        balance1 = IERC20(_token1).balanceOf(address(this));
+        _update(balance0, balance1, _reserve0, _reserve1);
+
+        if (protocolFeeOn) {
+            ammKlastSnapshot = uint256(reserve0) * reserve1;
+        }
+
+        emit Burn(msg.sender, amount0, amount1, to);
     }
     /*-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
