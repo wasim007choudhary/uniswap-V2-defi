@@ -219,7 +219,76 @@ contract UV2Router02 is IUV2Router02 {
     /*-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/
-
+    /**
+     * @notice Removes liquidity from a Uniswap V2 Pair and redeems the
+     *         underlying assets.
+     *
+     * @dev This function coordinates the liquidity removal process but does
+     *      not perform the redemption itself. The actual LP token burning,
+     *      proportional asset calculation, reserve updates, and protocol fee
+     *      handling are delegated to the Pair contract.
+     *
+     *      High-level workflow:
+     *
+     *      1. Verifies the transaction has not expired.
+     *      2. Computes the deterministic Pair contract address for the
+     *         supplied token pair.
+     *      3. Transfers the specified LP tokens from the caller to the Pair
+     *         contract.
+     *      4. Calls `Pair.burn()` to:
+     *         - Burn the transferred LP tokens.
+     *         - Calculate the user's proportional share of the pool.
+     *         - Transfer the underlying assets to the recipient.
+     *      5. Restores the returned token amounts to match the user's
+     *         requested `tokenA` / `tokenB` ordering.
+     *      6. Verifies the redeemed amounts satisfy the user's minimum
+     *         acceptable output constraints.
+     *
+     *      The Router itself never:
+     *      - Calculates redemption amounts.
+     *      - Burns LP tokens.
+     *      - Updates Pair reserves.
+     *
+     *      Those responsibilities belong entirely to the Pair contract.
+     *
+     * @param tokenA One of the two tokens in the liquidity pool.
+     * @param tokenB The second token in the liquidity pool.
+     * @param liquidity The amount of LP tokens to redeem.
+     * @param amountAMin The minimum acceptable amount of `tokenA` that must
+     *                   be received, otherwise the transaction reverts.
+     * @param amountBMin The minimum acceptable amount of `tokenB` that must
+     *                   be received, otherwise the transaction reverts.
+     * @param to The address that will receive the redeemed underlying
+     *           assets. This does not have to be `msg.sender`.
+     * @param deadline The latest timestamp at which this transaction may be
+     *                 executed.
+     *
+     * @return amountA The amount of `tokenA` redeemed from the Pair.
+     * @return amountB The amount of `tokenB` redeemed from the Pair.
+     *
+     * @custom:reverts UV2Router02___removeLiquidity__AmountAIsLessThanMinimumRequiredAsked
+     * Reverts if the redeemed amount of `tokenA` is less than
+     * `amountAMin`.
+     *
+     * @custom:reverts UV2Router02___removeLiquidity__AmountBIsLessThanMinimumRequiredAsked
+     * Reverts if the redeemed amount of `tokenB` is less than
+     * `amountBMin`.
+     *
+     * @custom:security LP tokens are transferred to the Pair before calling
+     *                  `burn()` so the Pair can securely redeem and destroy
+     *                  the ownership tokens itself.
+     *
+     * @custom:security Returned amounts are reordered from the Pair's
+     *                  internal `token0` / `token1` ordering back into the
+     *                  user-requested `tokenA` / `tokenB` ordering before
+     *                  being returned.
+     *  -------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+     *  @custom:see for complete dissection and a detailed breakdown:
+     *  1. First, go through the conceptual foundation → `notes/Liquidity/1.Conceptual_and_MathematicalFoundation/` all better understand the math and concepts behind liquidity addition and removal
+     *  2. Then go here → notes/Liquidity/1. Conceptual_and_MathematicalFoundation/P5-BurnSharesFormulaMathematical.md***,
+     *  3. and Finally go here -> notes/Liquidity/2. Code_Implementation/RemoveLiq_Burn/Router02_removeLiquidity
+     *  -------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+     */
     function removeLiquidity(
         address tokenA,
         address tokenB,

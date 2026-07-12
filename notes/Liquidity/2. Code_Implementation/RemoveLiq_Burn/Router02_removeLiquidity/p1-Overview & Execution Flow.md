@@ -1,6 +1,8 @@
 # `Router.removeLiquidity()` — Overview & Execution Flow
 
 > **Before studying this function, complete the prerequisite chapters below.**
+
+>Read all these before coming here: ***notes/Liquidity/1. Conceptual_and_MathematicalFoundation*** and then ***notes/Liquidity/1. Conceptual_and_MathematicalFoundation/P5-BurnSharesFormulaMathematical.md*** or else ypu will feel lost ngl!
 >
 > This chapter intentionally **does not** re-derive LP ownership,
 > liquidity mathematics, or the internal redemption logic. Those topics
