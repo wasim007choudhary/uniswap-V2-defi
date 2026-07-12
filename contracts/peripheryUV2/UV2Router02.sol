@@ -27,6 +27,8 @@ contract UV2Router02 is IUV2Router02 {
     error UV2Router02___addLiquidity__PairDoesNotExist();
     error UV2Router02___addLiquidity___InsufficientBOptimal_AmountBelowMin();
     error UV2Router02___addLiquidity___InsufficientAOptimal_AmountBelowMin();
+    error UV2Router02___removeLiquidity__AmountAIsLessThanMinimumRequiredAsked();
+    error UV2Router02___removeLiquidity__AmountBIsLessThanMinimumRequiredAsked();
 
     /*//////////////////////////////////////////////////////////////
                                 STATE VARIABLES
@@ -212,6 +214,33 @@ contract UV2Router02 is IUV2Router02 {
         MyTransferHelper.safeTransferFrom(tokenB, msg.sender, pair, amountB);
 
         liquidity = IUV2Pair(pair).mint(to);
+    }
+
+    /*-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+    -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+    ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/
+
+    function removeLiquidity(
+        address tokenA,
+        address tokenB,
+        uint256 liquidity,
+        uint256 amountAMin,
+        uint256 amountBMin,
+        address to,
+        uint256 deadline
+    ) external virtual override ensureExecutionTime(deadline) returns (uint256 amountA, uint256 amountB) {
+        address pair = UV2Library.pairFor(i_factory, tokenA, tokenB);
+        IUV2Pair(pair).transferFrom(msg.sender, pair, liquidity);
+
+        (uint256 amount0, uint256 amount1) = IUV2Pair(pair).burn(to);
+        (address token0,) = UV2Library.sortTokens(tokenA, tokenB);
+        (amountA, amountB) = tokenA == token0 ? (amount0, amount1) : (amount1, amount0);
+        if (amountA < amountAMin) {
+            revert UV2Router02___removeLiquidity__AmountAIsLessThanMinimumRequiredAsked();
+        }
+        if (amountB < amountBMin) {
+            revert UV2Router02___removeLiquidity__AmountBIsLessThanMinimumRequiredAsked();
+        }
     }
 
     /*-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
