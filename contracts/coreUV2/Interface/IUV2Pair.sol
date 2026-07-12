@@ -11,14 +11,22 @@ interface IUV2Pair {
 
     function name() external pure returns (string memory);
     function symbol() external pure returns (string memory);
-    function decimals() external pure returns (uint8);
+    function decimal() external pure returns (uint8);
     function totalSupply() external view returns (uint256);
-    function balanceOf(address owner) external view returns (uint256);
+    function balanceOf(address) external view returns (uint256);
     function allowance(address owner, address spender) external view returns (uint256);
+    function nonces(address addressOwner) external view returns (uint256);
+
+    function DOMAIN_SEPARATOR() external view returns (bytes32);
+    function PERMIT_TYPEHASH() external pure returns (bytes32);
 
     function approve(address spender, uint256 value) external returns (bool);
     function transfer(address to, uint256 value) external returns (bool);
     function transferFrom(address from, address to, uint256 value) external returns (bool);
+
+    function permit(address owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s)
+        external;
+
     event Swap(
         address indexed sender,
         uint256 amount0in,

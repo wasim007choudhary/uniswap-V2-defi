@@ -297,7 +297,7 @@ contract UV2Router02 is IUV2Router02 {
         uint256 amountBMin,
         address to,
         uint256 deadline
-    ) external virtual override ensureExecutionTime(deadline) returns (uint256 amountA, uint256 amountB) {
+    ) public virtual override ensureExecutionTime(deadline) returns (uint256 amountA, uint256 amountB) {
         address pair = UV2Library.pairFor(i_factory, tokenA, tokenB);
         IUV2Pair(pair).transferFrom(msg.sender, pair, liquidity);
 
@@ -310,6 +310,103 @@ contract UV2Router02 is IUV2Router02 {
         if (amountB < amountBMin) {
             revert UV2Router02___removeLiquidity__AmountBIsLessThanMinimumRequiredAsked();
         }
+    }
+
+    /*-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+    -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+    ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/
+    /**
+     * @notice Removes liquidity from a Pair using an EIP-2612 Permit
+     *         signature instead of requiring a separate approval
+     *         transaction.
+     *
+     * @dev This is a convenience wrapper around {removeLiquidity()}.
+     *
+     *      Instead of requiring the user to:
+     *
+     *      1. Call `approve()`.
+     *      2. Wait for the approval transaction to be mined.
+     *      3. Call `removeLiquidity()`.
+     *
+     *      this function allows the user to:
+     *
+     *      1. Sign an off-chain Permit message.
+     *      2. Submit a single transaction containing both the Permit
+     *         signature and the liquidity removal request.
+     *
+     *      High-level workflow:
+     *
+     *      1. Verifies the transaction has not expired.
+     *      2. Computes the Pair contract address.
+     *      3. Determines the Permit approval amount:
+     *         - `liquidity` when `approveMax` is false.
+     *         - `type(uint256).max` when `approveMax` is true.
+     *      4. Uses the supplied Permit signature to grant this Router
+     *         permission to spend the caller's LP tokens.
+     *      5. Calls {removeLiquidity()}, which:
+     *         - Transfers LP tokens to the Pair.
+     *         - Burns the LP tokens.
+     *         - Redeems the proportional underlying assets.
+     *         - Performs slippage checks.
+     *
+     *      This function introduces no new liquidity removal logic.
+     *      It simply combines Permit and liquidity removal into a single
+     *      blockchain transaction.
+     *
+     * @param tokenA One of the two tokens in the liquidity pool.
+     * @param tokenB The second token in the liquidity pool.
+     * @param liquidity The amount of LP tokens to redeem.
+     * @param amountAMin The minimum acceptable amount of `tokenA` that
+     *                   must be received.
+     * @param amountBMin The minimum acceptable amount of `tokenB` that
+     *                   must be received.
+     * @param to The address that will receive the redeemed underlying
+     *           assets.
+     * @param deadline The latest timestamp at which both the Permit and
+     *                 liquidity removal remain valid.
+     * @param approveMax If true, grants an effectively unlimited allowance
+     *                   (`type(uint256).max`) to the Router. Otherwise,
+     *                   approves exactly `liquidity` LP tokens.
+     * @param v The recovery identifier of the EIP-2612 Permit signature.
+     * @param r The first 32-byte component of the Permit signature.
+     * @param s The second 32-byte component of the Permit signature.
+     *
+     * @return amountA The amount of `tokenA` redeemed from the Pair.
+     * @return amountB The amount of `tokenB` redeemed from the Pair.
+     *
+     * @custom:security The Router becomes the approved spender via
+     *                  `permit()` because it executes `transferFrom()`
+     *                  to move LP tokens from the owner to the Pair.
+     *
+     * @custom:security The Pair is not the spender. It only receives the
+     *                  transferred LP tokens, burns them, and returns the
+     *                  underlying assets.
+     *
+     * @custom:security The Permit signature must belong to the LP token
+     *                  owner (`msg.sender`); otherwise signature
+     *                  verification fails and the transaction reverts.
+     *
+     *  -------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+     *  @custom:see for complete dissection and a detailed breakdown Visit: notes/Liquidity/2. Code_Implementation/RemoveLiq_Burn/Router02_removeLiquidityWithPermit
+     *  -------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+     */
+    function removeLiquidityWithPermit(
+        address tokenA,
+        address tokenB,
+        uint256 liquidity,
+        uint256 amountAMin,
+        uint256 amountBMin,
+        address to,
+        uint256 deadline,
+        bool approveMax,
+        uint8 v,
+        bytes32 r,
+        bytes32 s
+    ) external virtual override ensureExecutionTime(deadline) returns (uint256 amountA, uint256 amountB) {
+        address pair = UV2Library.pairFor(i_factory, tokenA, tokenB);
+        uint256 value = approveMax ? type(uint256).max : liquidity;
+        IUV2Pair(pair).permit(msg.sender, address(this), value, deadline, v, r, s);
+        (amountA, amountB) = removeLiquidity(tokenA, tokenB, liquidity, amountAMin, amountBMin, to, deadline);
     }
 
     /*-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
