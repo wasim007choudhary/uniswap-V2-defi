@@ -3,8 +3,14 @@
 pragma solidity ^0.8.20;
 
 interface IUV2Factory {
+    /*///////////////////////////////////////////////////////
+                   EVENTS
+    ////////////////////////////////////////////////////////*/
     event PairCreated(address indexed token0, address indexed token1, address pair, uint256 totalPairsNow);
 
+    /*///////////////////////////////////////////////////////
+                     EXTERNAL FUNCTIONS
+    ////////////////////////////////////////////////////////*/
     function feeTo() external view returns (address);
     function feeToAddressSetter() external view returns (address);
 

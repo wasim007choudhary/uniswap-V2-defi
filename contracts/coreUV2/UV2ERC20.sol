@@ -1,16 +1,24 @@
 // SPDX-Lisense-Identifeir: MIT
 
 pragma solidity ^0.8.20;
-
+/*////////////////////////////////////////////////////////
+                   IMPORTS
+////////////////////////////////////////////////////////*/
 import {IUV2ERC20} from "contracts/coreUV2/Interface/IUV2ERC20.sol";
 
 contract UniswapV2ERC20 is IUV2ERC20 {
+    /*////////////////////////////////////////////////////////
+                       ERRORS
+    ////////////////////////////////////////////////////////*/
     error UV2ERC20__permit__SignatureImplementationDeadlinePassed();
     error UV2ERC20__permit__InvalidSignature();
 
+    /*////////////////////////////////////////////////////////
+                       STATE VARIABLES
+    ////////////////////////////////////////////////////////*/
     string public constant name = "Uniswap-V2 LP Token";
     string public constant symbol = "UV2-LP";
-    uint8 public constant decimal = 18;
+    uint8 public constant decimals = 18;
     uint256 public totalSupply;
     mapping(address => uint256) public balanceOf;
     mapping(address => mapping(address => uint256)) public allowance;
@@ -21,11 +29,11 @@ contract UniswapV2ERC20 is IUV2ERC20 {
     //BASICALLY hash of the permit function with the args, not value tho, computer language of what the functio looks like
     bytes32 public constant PERMIT_TYPEHASH = 0x6e71edae12b1b97f4d1f60370fef10105fa2faae0126114a169c64845d6126c9;
 
-    event Approval(address indexed owner, address indexed spender, uint256 value);
-    event Transfer(address indexed from, address indexed to, uint256 value);
-
     mapping(address => uint256) public nonces;
 
+    /*////////////////////////////////////////////////////////
+                       CONSTRUCTOR
+    ////////////////////////////////////////////////////////*/
     constructor() {
         uint256 chainId = block.chainid;
         DOMAIN_SEPARATOR = keccak256(
@@ -39,6 +47,9 @@ contract UniswapV2ERC20 is IUV2ERC20 {
         );
     }
 
+    /*////////////////////////////////////////////////////////
+                       PRIVATE FUNCTIONS
+    ////////////////////////////////////////////////////////*/
     function _transfer(address from, address to, uint256 value) private {
         balanceOf[from] -= value;
         balanceOf[to] += value;
@@ -50,6 +61,9 @@ contract UniswapV2ERC20 is IUV2ERC20 {
         emit Approval(owner, spender, value);
     }
 
+    /*////////////////////////////////////////////////////////
+                       INTERNAL FUNCTIONS
+    ////////////////////////////////////////////////////////*/
     function _mint(address to, uint256 value) internal {
         totalSupply += value;
         balanceOf[to] += value;
@@ -62,6 +76,9 @@ contract UniswapV2ERC20 is IUV2ERC20 {
         emit Transfer(from, address(0), value);
     }
 
+    /*////////////////////////////////////////////////////////
+                       EXTERNAL FUNCTIONS
+    ////////////////////////////////////////////////////////*/
     function transfer(address to, uint256 value) external returns (bool) {
         _transfer(msg.sender, to, value);
         return true;

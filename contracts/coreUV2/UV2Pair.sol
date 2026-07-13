@@ -210,6 +210,9 @@ contract UV2Pair is IUV2Pair, UniswapV2ERC20 {
         _timeStampLastUpdate = timeStampLastUpdate;
     }
 
+    /*///////////////////////////////////////////////////////
+                   PRIVATE FUNCTIONS
+      ///////////////////////////////////////////////////////*/
     /*-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/
@@ -400,6 +403,9 @@ contract UV2Pair is IUV2Pair, UniswapV2ERC20 {
         }
     }
 
+    /*///////////////////////////////////////////////////////
+                   EXTERNAL FUNCTIONS
+      ///////////////////////////////////////////////////////*/
     /*-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/
@@ -466,12 +472,13 @@ contract UV2Pair is IUV2Pair, UniswapV2ERC20 {
      *  ------------------------------------------------------------------------------------------------------------------------------------------------------------------
      *
      */
-    function mint(address to) external returns (uint256 liquidity) {
+    function mint(address to) external myReentryPrevention returns (uint256 liquidity) {
         (uint112 _reserve0, uint112 _reserve1,) = getReserves();
         uint256 balance0 = IERC20(token0).balanceOf(address(this));
         uint256 balance1 = IERC20(token1).balanceOf(address(this));
         uint256 amount0 = balance0 - _reserve0;
         uint256 amount1 = balance1 - _reserve1;
+
         bool protocolFeeOn = _mintProtocolFee(_reserve0, _reserve1);
 
         uint256 _totalSupply = totalSupply; // gas savings, must be defined here since totalSupply can update in _mintFee
@@ -496,7 +503,49 @@ contract UV2Pair is IUV2Pair, UniswapV2ERC20 {
     /*-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/
-    function burn(address to) external returns (uint256 amount0, uint256 amount1) {
+    /**
+     * @notice Burns LP tokens held by this Pair contract and returns the corresponding underlying assets.
+     * @dev This function is the inverse of {mint}. It assumes the LP tokens to be burned have already
+     *      been transferred to the Pair contract (typically by the Router via `transferFrom`).
+     *
+     *      Execution flow:
+     *      1. Reads the previous reserve snapshot.
+     *      2. Reads the Pair's current token balances.
+     *      3. Determines the amount of LP tokens currently held by the Pair.
+     *      4. Mints protocol fee LP tokens if protocol fees are enabled.
+     *      5. Calculates the proportional share of Token0 and Token1 owed to the liquidity provider.
+     *      6. Reverts if either redemption amount is zero.
+     *      7. Burns the Pair's LP tokens, permanently removing them from circulation.
+     *      8. Transfers the underlying tokens to the recipient.
+     *      9. Updates reserves to match the Pair's new balances.
+     *      10. Updates the protocol fee snapshot (`ammKlastSnapshot`) when protocol fees are enabled.
+     *      11. Emits a {Burn} event.
+     *
+     *      The redemption amounts are calculated using the Pair's current token balances instead of
+     *      stored reserves to ensure every liquidity provider receives their fair proportional
+     *      (pro-rata) share of the Pair's actual holdings at redemption time.
+     *
+     * @param to The address that will receive the redeemed Token0 and Token1.
+     *
+     * @return amount0 The amount of Token0 redeemed and transferred to `to`.
+     * @return amount1 The amount of Token1 redeemed and transferred to `to`.
+     *
+     * @custom:requirements
+     * - The Pair contract must already own the LP tokens to be burned.
+     * - Both calculated redemption amounts must be greater than zero.
+     *
+     * @custom:reverts UV2Pair___burn__InsufficientLiquidityBurned__and__ZeroTokensReturned
+     * Reverts if either `amount0` or `amount1` is zero, preventing LP tokens from being burned while
+     * returning an insignificant or zero amount of one or both underlying assets.
+     *
+     * @custom:emits Burn
+     * Emits a {Burn} event containing the caller, redeemed Token0 amount, redeemed Token1 amount,
+     * and the recipient address.
+     * ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+     * @custom:see For complete Dissection and a detailed breakdown visit:-notes/Liquidity/2. Code_Implementation/RemoveLiq_Burn/3. Pair Burn
+     */
+
+    function burn(address to) external myReentryPrevention returns (uint256 amount0, uint256 amount1) {
         (uint112 _reserve0, uint112 _reserve1,) = getReserves();
 
         address _token0 = token0;
@@ -591,7 +640,10 @@ contract UV2Pair is IUV2Pair, UniswapV2ERC20 {
      * cumulative price tracking, oracle accounting, and TWAP preparation.
      */
 
-    function swap(uint256 amount0out, uint256 amount1out, address to, bytes calldata data) external {
+    function swap(uint256 amount0out, uint256 amount1out, address to, bytes calldata data)
+        external
+        myReentryPrevention
+    {
         if (amount0out <= 0 && amount1out <= 0) {
             revert UV2Pair___swap__InsufficientOutPutAmountInThePair();
         }
@@ -638,6 +690,43 @@ contract UV2Pair is IUV2Pair, UniswapV2ERC20 {
         }
         _update(balance0, balance1, reserve_0, reserve_1);
         emit Swap(msg.sender, amount0in, amount1in, amount0out, amount1out, to);
+    }
+
+    /*-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+    -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+    ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/
+    /**
+     * @notice Transfers any excess Token0 and Token1 held by the Pair to a specified recipient.
+     * @dev Compares the Pair's current token balances against the recorded reserves and transfers
+     *      only the surplus (`balance - reserve`) for each token.
+     *
+     *      This function is intended for recovering tokens that were transferred directly to the
+     *      Pair contract without going through the normal liquidity workflow (e.g., accidental
+     *      transfers, dust, or unexpected excess tokens).
+     *
+     *      Unlike {sync}, this function does **not** update the reserves. Instead, it removes the
+     *      excess tokens so that the Pair's balances once again match the stored reserve snapshot.
+     *
+     *      Anyone may call this function. The recovered excess tokens are sent to the address
+     *      specified by `to`.
+     *
+     * @param to The address that will receive any excess Token0 and Token1.
+     *
+     * @custom:requirements
+     * - The Pair's current balance for each token must be greater than or equal to its recorded reserve.
+     *
+     * @custom:emits
+     * Does not emit a dedicated event. Token transfers emit the standard ERC-20 `Transfer` events.
+     *
+     * --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+     * @custom:see Visit-notes/Core/UV2Pair--skim.md for complete breakdown! GGs
+     * --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+     */
+    function skim(address to) external myReentryPrevention {
+        address _token0 = token0;
+        address _token1 = token1;
+        _safeTransfer(_token0, to, IERC20(_token0).balanceOf(address(this)) - reserve0);
+        _safeTransfer(_token1, to, IERC20(_token1).balanceOf(address(this)) - reserve1);
     }
 
     /*-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------

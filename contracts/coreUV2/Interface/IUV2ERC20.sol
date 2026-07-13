@@ -3,9 +3,18 @@
 pragma solidity ^0.8.20;
 
 interface IUV2ERC20 {
+    /*////////////////////////////////////////////////////////
+                       EVENTS
+    ////////////////////////////////////////////////////////*/
+    event Approval(address indexed owner, address indexed spender, uint256 value);
+    event Transfer(address indexed from, address indexed to, uint256 value);
+
+    /*////////////////////////////////////////////////////////
+                       EXTERNAL  FUNCTIONS
+    ////////////////////////////////////////////////////////*/
     function name() external pure returns (string memory);
     function symbol() external pure returns (string memory);
-    function decimal() external pure returns (uint8);
+    function decimals() external pure returns (uint8);
     function totalSupply() external view returns (uint256);
     function balanceOf(address) external view returns (uint256);
     function allowance(address owner, address spender) external view returns (uint256);
