@@ -1,5 +1,7 @@
 # Introduction to Constant Product AMMs
 
+> Just a slight peek rest will be broken along with the functions and in their notes with every conceot attached to it GGs
+
 We begin by analyzing the **constant product Automated Market Maker**, which is the fundamental mechanism used by Uniswap V2 to facilitate decentralized trading.
 
 Unlike traditional exchanges that rely on **order books**, AMMs use **mathematical invariants** to determine pricing and trade outcomes.
