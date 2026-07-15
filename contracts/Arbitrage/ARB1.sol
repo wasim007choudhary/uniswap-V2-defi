@@ -8,6 +8,7 @@ import {IERC20} from "contracts/peripheryUV2/Interfaces/IERC20.sol";
 
 contract ARB1 {
     error ARB1__swap__RequiredMinimumProfitLimitNotReached();
+    error ARB1__uniswapV2Call__RequiredMinimumProfitLimitNotReached();
 
     struct Arb1Params {
         address tokenIn;
@@ -58,5 +59,72 @@ contract ARB1 {
             revert ARB1__swap__RequiredMinimumProfitLimitNotReached();
         }
         IERC20(arbParam.tokenIn).transfer(msg.sender, amountOut);
+    }
+
+    //now lets try flash swap using uniswap v2 and xyzSwap protocl, remebr router0 is noit strictly uniswap it csn be any protocol which hav e those unctions a mean but here lets say uni and 1 is xyzprotocol or shuiswa[p
+    function flashSwap(address pairContract, Arb1Params memory arbParam) external {
+        address _token0 = IUV2Pair(pairContract).token0();
+        bool isToken0 = (arbParam.tokenIn == _token0);
+        bytes memory data = abi.encode(msg.sender, pairContract, arbParam);
+
+        IUV2Pair(pairContract)
+            .swap({
+                amount0Out: isToken0 ? arbParam.inputAmount : 0,
+                amount1Out: isToken0 ? 0 : arbParam.inputAmount,
+                to: address(this),
+                data: data
+            });
+        // in if block
+        /* uint256 amount0Out;
+        uint256 amount1Out;
+
+        if (isToken0) {
+            amount0Out = params.amountIn;
+            amount1Out = 0;
+        } else {
+            amount0Out = 0;
+            amount1Out = params.amountIn;
+        }
+
+        IUniswapV2Pair(pair).swap({
+            amount0Out: amount0Out,
+            amount1Out: amount1Out,
+            to: address(this),
+            data: data
+        });*/
+
+        // or more simple way -
+
+        /*uint256 amount0Out = 0;
+        uint256 amount1Out = 0;
+
+        if (isToken0) {
+            amount0Out = params.amountIn;
+        } else {
+            amount1Out = params.amountIn;
+        }
+
+        IUniswapV2Pair(pair).swap(
+            amount0Out,
+            amount1Out,
+            address(this),
+            data
+        );*/
+    }
+
+    function uniswapV2Call(address sender, uint256 amount0, uint256 amount1, bytes calldata data) external {
+        (address originalFunctionCaller, address pairAddressCalled, Arb1Params memory arbParam) =
+            abi.decode(data, (address, address, Arb1Params));
+        uint256 amountOut = _swap(arbParam);
+
+        uint256 fee = ((arbParam.inputAmount * 3) / 997) + 1;
+        uint256 amountToRepay = arbParam.inputAmount + fee;
+        uint256 profit = amountOut - amountToRepay;
+
+        if (profit < arbParam.minProfitFromArb) {
+            revert ARB1__uniswapV2Call__RequiredMinimumProfitLimitNotReached();
+        }
+        IERC20(arbParam.tokenIn).transfer(pairAddressCalled, amountToRepay);
+        IERC20(arbParam.tokenIn).transfer(originalFunctionCaller, profit);
     }
 }
