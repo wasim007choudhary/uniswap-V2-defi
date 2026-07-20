@@ -14,8 +14,10 @@ jobs:
   check:
     name: Foundry project
     runs-on: ubuntu-latest
+
     permissions:
       contents: read
+
     steps:
       - uses: actions/checkout@v5
         with:
@@ -37,4 +39,6 @@ jobs:
         run: forge build --sizes
 
       - name: Run Forge tests
+        env:
+          MAINNET_RPC_URL: ${{ secrets.MAINNET_RPC_URL }}
         run: forge test -vvv

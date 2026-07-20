@@ -26,6 +26,7 @@ contract ARB1test is Test {
     ARB1 private arb1;
 
     function setUp() public {
+        vm.createSelectFork(vm.envString("MAINNET_RPC_URL"));
         arb1 = new ARB1();
         deal(address(this), 50 ether);
         weth.deposit{value: 50 ether}();

@@ -29,6 +29,7 @@ contract ARB2test is Test {
     address userW = address(2);
 
     function setUp() public {
+        vm.createSelectFork(vm.envString("MAINNET_RPC_URL"));
         arb2 = new ARB2();
 
         deal(address(this), 50 ether);
